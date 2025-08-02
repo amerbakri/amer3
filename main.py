@@ -11,13 +11,19 @@ if not BOT_TOKEN:
 bot = Bot(token=BOT_TOKEN)
 application = Application.builder().token(BOT_TOKEN).build()
 
-# دالة استقبال Webhook مع طباعة التحديث
+# تعريف أمر /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("أهلاً بك في البوت ✅")
+
+application.add_handler(CommandHandler("start", start))
+
+# معالجة التحديث فوراً
 async def handle(request):
     if request.method == "POST":
         data = await request.json()
-        print("📩 Incoming update:", data)
         update = Update.de_json(data, bot)
-        await application.update_queue.put(update)
+        # هنا نعالج التحديث فوراً
+        await application.process_update(update)
         return web.Response(text="ok")
     return web.Response(status=405)
 
