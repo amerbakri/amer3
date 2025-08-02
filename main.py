@@ -2,7 +2,7 @@ import os
 import asyncio
 from aiohttp import web
 from telegram import Update, Bot
-from telegram.ext import Application, ContextTypes
+from telegram.ext import Application, ContextTypes, CommandHandler
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
@@ -11,18 +11,15 @@ if not BOT_TOKEN:
 bot = Bot(token=BOT_TOKEN)
 application = Application.builder().token(BOT_TOKEN).build()
 
-# تعريف أمر /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("أهلاً بك في البوت ✅")
 
 application.add_handler(CommandHandler("start", start))
 
-# معالجة التحديث فوراً
 async def handle(request):
     if request.method == "POST":
         data = await request.json()
         update = Update.de_json(data, bot)
-        # هنا نعالج التحديث فوراً
         await application.process_update(update)
         return web.Response(text="ok")
     return web.Response(status=405)
