@@ -1,108 +1,101 @@
 import os
 import asyncio
+import yt_dlp
 from aiohttp import web
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
-    CommandHandler,
-    MessageHandler,
     CallbackQueryHandler,
     ContextTypes,
+    MessageHandler,
     filters,
 )
-import yt_dlp
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set!")
 
-# اسم ملف الكوكيز (تأكد أنه في نفس المجلد)
-import os
-COOKIES_FILE = os.path.abspath("cookies.txt")
-
 application = Application.builder().token(BOT_TOKEN).build()
 
-def get_video_info(url):
+def get_formats(url):
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
-        'cookiefile': COOKIES_FILE,  # إضافة دعم ملف الكوكيز
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
-    return info
+    formats = info.get('formats', [])
+    available_formats = []
+    for f in formats:
+        if f.get('acodec') != 'none' and f.get('vcodec') != 'none':
+            resolution = f.get('resolution') or f.get('format_note') or "Unknown"
+            filesize = f.get('filesize') or 0
+            available_formats.append({
+                'format_id': f.get('format_id'),
+                'resolution': resolution,
+                'filesize': filesize,
+            })
+    return available_formats
 
-async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text(
-            "أرسل رابط الفيديو بعد الأمر:\n/info https://youtu.be/..."
-        )
-        return
-
-    url = context.args[0]
-    await update.message.reply_text("جارٍ جلب معلومات الفيديو...")
-
-    try:
-        info = get_video_info(url)
-        title = info.get('title', 'لا يوجد عنوان')
-        duration = info.get('duration_string', 'غير معروف')
-        uploader = info.get('uploader', 'غير معروف')
-        thumbnail = info.get('thumbnail')
-
-        msg = f"📹 العنوان: {title}\n⏱️ المدة: {duration}\n👤 الناشر: {uploader}"
-        await update.message.reply_photo(photo=thumbnail, caption=msg)
-    except Exception as e:
-        await update.message.reply_text(f"حدث خطأ أثناء جلب المعلومات: {e}")
-
-async def download_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text(
-            "أرسل رابط الفيديو بعد الأمر:\n/download https://youtu.be/..."
-        )
-        return
-
-    url = context.args[0]
-    await update.message.reply_text("⏳ جاري تحميل الفيديو...")
-
-    output_dir = "downloads"
-    os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, f"{update.effective_user.id}.mp4")
-
+def download_by_format(url, format_id, output_file):
     ydl_opts = {
-        'format': 'best[height<=720][ext=mp4]/best',
+        'format': format_id,
         'outtmpl': output_file,
         'quiet': True,
         'no_warnings': True,
-        'cookiefile': COOKIES_FILE,  # إضافة دعم ملف الكوكيز
     }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        with open(output_file, 'rb') as video_file:
-            await update.message.reply_video(video_file)
-        os.remove(output_file)
-    except Exception as e:
-        await update.message.reply_text(f"❌ حدث خطأ أثناء التحميل أو الإرسال: {e}")
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if text.startswith("https://") or text.startswith("http://"):
+        url = text.strip()
+        await update.message.reply_text("جارٍ جلب الجودات المتاحة...")
+        try:
+            formats = get_formats(url)
+            buttons = []
+            for f in formats:
+                size_mb = f['filesize'] / (1024 * 1024) if f['filesize'] else 0
+                text_btn = f"{f['resolution']} - {size_mb:.2f} MB" if size_mb > 0 else f"{f['resolution']}"
+                buttons.append([InlineKeyboardButton(text_btn, callback_data=f"download:{f['format_id']}:{url}")])
+            reply_markup = InlineKeyboardMarkup(buttons)
+            await update.message.reply_text("اختر الجودة لتحميل الفيديو:", reply_markup=reply_markup)
+        except Exception as e:
+            await update.message.reply_text(f"حدث خطأ أثناء جلب الجودات: {e}")
+    else:
+        # لو حابب ترد على رسائل غير الروابط، اضف هنا
+        pass
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text(text=f"✅ تم الضغط على: {query.data}")
+    data = query.data
+    if data.startswith("download:"):
+        _, format_id, url = data.split(":", 2)
+        output_dir = "downloads"
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, f"{query.from_user.id}_{format_id}.mp4")
 
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("مرحباً! أرسل /info أو /download مع رابط الفيديو.")
+        await query.edit_message_text("⏳ جاري تحميل الفيديو ...")
 
-application.add_handler(CommandHandler("info", info_command))
-application.add_handler(CommandHandler("download", download_command))
-application.add_handler(CallbackQueryHandler(button_handler))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+        loop = asyncio.get_event_loop()
+        try:
+            await loop.run_in_executor(None, download_by_format, url, format_id, output_file)
+            with open(output_file, 'rb') as video_file:
+                await query.message.reply_video(video_file)
+            os.remove(output_file)
+            await query.edit_message_text("✅ تم تحميل الفيديو وإرساله.")
+        except Exception as e:
+            await query.edit_message_text(f"❌ حدث خطأ أثناء التحميل: {e}")
+
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+application.add_handler(CallbackQueryHandler(callback_handler))
 
 async def handle(request):
     if request.method == "POST":
         data = await request.json()
-        print("Incoming update:", data)  # طباعة التحديث في اللوجز
         update = Update.de_json(data, application.bot)
         await application.process_update(update)
         return web.Response(text="ok")
