@@ -5,3 +5,5 @@ openai==0.28
 pytesseract
 Pillow
 pytube==15.0.0
+python-telegram-bot[asyncio]==20.3
+aiohttp
