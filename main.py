@@ -1,7 +1,7 @@
 import os
 import asyncio
 from aiohttp import web
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -16,14 +16,17 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set!")
 
+# اسم ملف الكوكيز (تأكد أنه في نفس المجلد)
+COOKIES_FILE = "cookies.txt"
+
 application = Application.builder().token(BOT_TOKEN).build()
 
-# جلب بيانات الفيديو (metadata)
 def get_video_info(url):
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
+        'cookiefile': COOKIES_FILE,  # إضافة دعم ملف الكوكيز
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -70,6 +73,7 @@ async def download_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'outtmpl': output_file,
         'quiet': True,
         'no_warnings': True,
+        'cookiefile': COOKIES_FILE,  # إضافة دعم ملف الكوكيز
     }
 
     try:
