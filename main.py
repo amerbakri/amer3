@@ -27,6 +27,17 @@ async def handle(request):
 app = web.Application()
 app.router.add_post(f"/{BOT_TOKEN}", handle)
 
+async def on_startup(app):
+    await application.initialize()
+    await application.start()
+
+async def on_cleanup(app):
+    await application.stop()
+    await application.shutdown()
+
+app.on_startup.append(on_startup)
+app.on_cleanup.append(on_cleanup)
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 10000))
     web.run_app(app, host="0.0.0.0", port=port)
