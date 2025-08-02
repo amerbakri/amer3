@@ -17,7 +17,8 @@ if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set!")
 
 # اسم ملف الكوكيز (تأكد أنه في نفس المجلد)
-COOKIES_FILE = "cookies.txt"
+import os
+COOKIES_FILE = os.path.abspath("cookies.txt")
 
 application = Application.builder().token(BOT_TOKEN).build()
 
