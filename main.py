@@ -6,11 +6,10 @@ import functools
 import asyncio
 import re
 from datetime import datetime, timezone, timedelta
-from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto,
-)
+from aiohttp import web
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+    Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 )
 import openai
 
@@ -83,7 +82,6 @@ def deactivate_subscription(uid):
     save_json(SUBSCRIPTIONS_FILE, subs)
 
 def check_limits(uid, action):
-    # الأدمن والمدفوعين بدون حدود
     if is_subscribed(uid) or uid == ADMIN_ID:
         return True
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -200,7 +198,6 @@ async def support_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ تم إرسال رسالتك للدعم الفني، سيقوم الأدمن بالرد قريباً.")
         support_chats.pop(uid)
     elif update.message.reply_to_message and update.message.reply_to_message.from_user.id == ADMIN_ID:
-        # Reply by admin to support chat
         ref_uid = int(update.message.reply_to_message.text.split("من ")[-1].split("\n")[0])
         await context.bot.send_message(ref_uid, f"🟢 رد الأدمن:\n{update.message.text}")
 
@@ -367,20 +364,39 @@ async def button_handler(update, context):
     except: pass
 
 # =========== ويب هوك وتسجيل المعالجات ===========
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-app.add_handler(CommandHandler("start", admin_panel))
-app.add_handler(CallbackQueryHandler(subscribe_request,    pattern=r"^subscribe_request$"))
-app.add_handler(CallbackQueryHandler(confirm_sub,          pattern=r"^confirm_sub\|"))
-app.add_handler(CallbackQueryHandler(reject_sub,           pattern=r"^reject_sub\|"))
-app.add_handler(CallbackQueryHandler(button_handler,       pattern=r"^(video|audio|cancel)\|"))
-app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern=r"^admin_"))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-app.add_handler(MessageHandler(filters.ALL, broadcast))
+
+application = Application.builder().token(BOT_TOKEN).build()
+application.add_handler(CommandHandler("start", admin_panel))
+application.add_handler(CallbackQueryHandler(subscribe_request,    pattern=r"^subscribe_request$"))
+application.add_handler(CallbackQueryHandler(confirm_sub,          pattern=r"^confirm_sub\|"))
+application.add_handler(CallbackQueryHandler(reject_sub,           pattern=r"^reject_sub\|"))
+application.add_handler(CallbackQueryHandler(button_handler,       pattern=r"^(video|audio|cancel)\|"))
+application.add_handler(CallbackQueryHandler(admin_panel_callback, pattern=r"^admin_"))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+application.add_handler(MessageHandler(filters.ALL, broadcast))
+
+async def handle(request):
+    if request.method == "POST":
+        data = await request.json()
+        update = Update.de_json(data, application.bot)
+        await application.process_update(update)
+        return web.Response(text="ok")
+    return web.Response(status=405)
+
+app = web.Application()
+app.router.add_post(f"/{BOT_TOKEN}", handle)
+
+async def on_startup(app):
+    await application.initialize()
+    await application.start()
+
+async def on_cleanup(app):
+    await application.stop()
+    await application.shutdown()
+
+app.on_startup.append(on_startup)
+app.on_cleanup.append(on_cleanup)
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 10000))
-    host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "localhost")
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=port,
-        webhook_url=f"https://{host}/{BOT_TOKEN}"
-    )
+    web.run_app(app, host="0.0.0.0", port=port)
