@@ -9,8 +9,8 @@ from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    ChatAction,
 )
+from telegram.constants import ChatAction
 from telegram.ext import (
     Application,
     CommandHandler,
