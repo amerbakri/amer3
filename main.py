@@ -5,26 +5,27 @@ import logging
 import functools
 import asyncio
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from aiohttp import web
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update, InlineKeyboardButton, InlineKeyboardMarkup
+)
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 )
 import openai
 
-# --- إعدادات ---
-ADMIN_ID = 337597459
+# ====== إعدادات عامة ======
+ADMIN_ID = 337597459  # رقم الأدمن (غيره حسب حسابك)
 ORANGE_NUMBER = "0781200500"
-BOT_TOKEN = os.getenv("BOT_TOKEN", "ضع_توكن_البوت_هنا")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "ضع_مفتاح_OPENAI_هنا")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "ضع_توكن_البوت")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "ضع_OPENAI")
 COOKIES_FILE = "cookies.txt"
 USERS_FILE = "users.txt"
 SUBSCRIPTIONS_FILE = "subscriptions.json"
 LIMITS_FILE = "limits.json"
 DAILY_VIDEO_LIMIT = 3
 DAILY_AI_LIMIT = 5
-SUB_DURATION_DAYS = 30
 
 openai.api_key = OPENAI_API_KEY
 
@@ -32,14 +33,12 @@ url_store = {}
 pending_subs = set()
 broadcast_mode = {}
 support_chats = {}
-admin_reply_to = {}
 quality_map = {
     "720": "bestvideo[height<=720]+bestaudio/best",
     "480": "bestvideo[height<=480]+bestaudio/best",
     "360": "bestvideo[height<=360]+bestaudio/best",
 }
-
-# --- وظائف مساعدة ---
+# ====== أدوات مساعدة ======
 def load_json(path, default=None):
     if not os.path.exists(path):
         return default or {}
@@ -114,7 +113,23 @@ async def safe_edit(query, text, kb=None):
     except:
         pass
 
-# --- لوحة تحكم الأدمن/بث ---
+# ============ أوامر ولوحة الأدمن ============
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id == ADMIN_ID:
+        await admin_panel(update, context)
+    else:
+        kb = [
+            [InlineKeyboardButton("💎 اشترك الآن", callback_data="subscribe_request")],
+            [InlineKeyboardButton("💬 دعم فني", callback_data="support_start")]
+        ]
+        await update.message.reply_text(
+            "👋 مرحباً بك في البوت! حمّل فيديوهاتك وجرّب الذكاء الاصطناعي...\n"
+            "🔓 حمل 3 فيديو يومياً مجاناً أو اشترك لتفعيل الميزات الكاملة.\n"
+            f"للاشتراك: حوّل على أورنج موني {ORANGE_NUMBER} ثم اضغط اشترك الآن.",
+            reply_markup=InlineKeyboardMarkup(kb)
+        )
+
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = [
         [InlineKeyboardButton("👥 عدد المستخدمين", callback_data="admin_users")],
@@ -161,7 +176,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         await safe_edit(q, "رجوع ...")
 
-# --- بث/إعلان ---
+# ============ بث/إعلان ============
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message and update.message.from_user.id == ADMIN_ID and broadcast_mode.get(ADMIN_ID):
         broadcast_mode[ADMIN_ID] = False
@@ -183,7 +198,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 continue
         await update.message.reply_text(f"تم إرسال الإعلان إلى {sent} مستخدم.")
 
-# --- دعم فني مباشر ---
+# ============ دعم فني ============
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     support_chats[update.effective_user.id] = True
     await update.message.reply_text("✉️ أرسل رسالتك الآن وسيتم تحويلها للأدمن.")
@@ -201,7 +216,7 @@ async def support_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ref_uid = int(update.message.reply_to_message.text.split("من ")[-1].split("\n")[0])
         await context.bot.send_message(ref_uid, f"🟢 رد الأدمن:\n{update.message.text}")
 
-# --- اشتراك وتفعيل ---
+# ============ اشتراك ============
 async def subscribe_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -237,7 +252,7 @@ async def reject_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(int(uid), "❌ *تم رفض طلب اشتراكك.*\nللمساعدة استخدم زر الدعم.", parse_mode="Markdown")
     await q.edit_message_text("🚫 تم رفض الاشتراك.")
 
-# --- ذكاء صناعي ---
+# ============ ذكاء صناعي ============
 async def ask_openai(text):
     res = await asyncio.get_event_loop().run_in_executor(
         None, lambda: openai.ChatCompletion.create(
@@ -248,7 +263,7 @@ async def ask_openai(text):
     )
     return res["choices"][0]["message"]["content"].strip()
 
-# --- رسائل المستخدمين ---
+# ============ رسائل المستخدمين ============
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     store_user(user)
@@ -296,7 +311,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ خطأ في الرد: {e}")
 
-# --- تحميل الفيديو/الصوت ---
+# ============ تحميل الفيديو/الصوت ============
 async def button_handler(update, context):
     import glob
     q = update.callback_query
@@ -363,10 +378,9 @@ async def button_handler(update, context):
     try: await q.message.delete()
     except: pass
 
-# =========== ويب هوك وتسجيل المعالجات ===========
-
+# ============ Webhook / تسجيل المعالجات ============
 application = Application.builder().token(BOT_TOKEN).build()
-application.add_handler(CommandHandler("start", admin_panel))
+application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(subscribe_request,    pattern=r"^subscribe_request$"))
 application.add_handler(CallbackQueryHandler(confirm_sub,          pattern=r"^confirm_sub\|"))
 application.add_handler(CallbackQueryHandler(reject_sub,           pattern=r"^reject_sub\|"))
