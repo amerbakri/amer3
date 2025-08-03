@@ -330,6 +330,27 @@ async def button_handler(update, context):
     url_store.pop(msg_id, None)
     try: await q.message.delete()
     except: pass
+        async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text.strip()
+
+    if not check_limits(user_id, "video"):
+        await update.message.reply_text("🚫 انتهى الحد المجاني من تنزيل الفيديو.")
+        return
+
+    if text.startswith("http://") or text.startswith("https://"):
+        msg_id = str(update.message.message_id)
+        url_store[msg_id] = text
+        keyboard = [
+            [InlineKeyboardButton("▶️ تحميل فيديو", callback_data=f"video|720|{msg_id}")],
+            [InlineKeyboardButton("🎵 تحميل صوت MP3", callback_data=f"audio|360|{msg_id}")],
+            [InlineKeyboardButton("❌ إلغاء", callback_data=f"cancel|{msg_id}")]
+        ]
+        await update.message.reply_text("🔽 اختر نوع التحميل:", reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.message.reply_text("اكتب لي رابط فيديو أو ملف!")
+
+
 
 # ============= بوت ويب هوك =============
 app = ApplicationBuilder().token(BOT_TOKEN).build()
