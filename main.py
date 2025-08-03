@@ -15,8 +15,7 @@ from telegram.ext import (
 )
 import openai
 
-# ====== إعدادات عامة ======
-ADMIN_ID = 337597459  # رقم الأدمن (غيره حسب حسابك)
+ADMIN_ID = 337597459  # غيّر لآيديك
 ORANGE_NUMBER = "0781200500"
 BOT_TOKEN = os.getenv("BOT_TOKEN", "ضع_توكن_البوت")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "ضع_OPENAI")
@@ -32,13 +31,13 @@ openai.api_key = OPENAI_API_KEY
 url_store = {}
 pending_subs = set()
 broadcast_mode = {}
-support_chats = {}
 quality_map = {
     "720": "bestvideo[height<=720]+bestaudio/best",
     "480": "bestvideo[height<=480]+bestaudio/best",
     "360": "bestvideo[height<=360]+bestaudio/best",
 }
-# ====== أدوات مساعدة ======
+active_support_chats = {}  # user_id: {"admin_msg_id": x, "username": y, ...}
+
 def load_json(path, default=None):
     if not os.path.exists(path):
         return default or {}
@@ -124,8 +123,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("💬 دعم فني", callback_data="support_start")]
         ]
         await update.message.reply_text(
-            "👋 مرحباً بك في البوت! حمّل فيديوهاتك وجرّب الذكاء الاصطناعي...\n"
-            "🔓 حمل 3 فيديو يومياً مجاناً أو اشترك لتفعيل الميزات الكاملة.\n"
+            "👋 أهلاً بك في بوت تحميل الفيديو والذكاء الصناعي!\n\n"
+            "🔓 حمّل 3 فيديوهات يومياً مجاناً أو اشترك لتفعيل الميزات الكاملة.\n"
             f"للاشتراك: حوّل على أورنج موني {ORANGE_NUMBER} ثم اضغط اشترك الآن.",
             reply_markup=InlineKeyboardMarkup(kb)
         )
@@ -136,7 +135,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🟢 المدفوعين", callback_data="admin_paidlist")],
         [InlineKeyboardButton("📢 إعلان", callback_data="admin_broadcast")],
         [InlineKeyboardButton("📊 إحصائيات", callback_data="admin_stats")],
-        [InlineKeyboardButton("💬 دعم فني", callback_data="admin_supports")],
+        [InlineKeyboardButton("🆘 دردشات الدعم", callback_data="admin_supports")],
     ]
     await update.message.reply_text("🛠️ لوحة تحكم الأدمن:", reply_markup=InlineKeyboardMarkup(kb))
 
@@ -151,6 +150,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         subs = load_subs()
         kb = []
         for uid in subs:
+            userinfo = subs[uid]
             kb.append([
                 InlineKeyboardButton(f"{uid}", callback_data=f"admin_userinfo|{uid}"),
                 InlineKeyboardButton("❌ إلغاء", callback_data=f"admin_cancel_sub|{uid}")
@@ -171,10 +171,29 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         paid = len(subs)
         await safe_edit(q, f"📊 الإحصائيات:\nعدد الكلي: {total}\nالمدفوعين: {paid}")
     elif data == "admin_supports":
-        chats = [str(k) for k in support_chats.keys()]
-        await safe_edit(q, f"دردشات الدعم: {', '.join(chats) if chats else 'لا يوجد'}")
+        chats = []
+        for uid in active_support_chats:
+            info = active_support_chats[uid]
+            name = info["name"]
+            username = info["username"]
+            chats.append([
+                InlineKeyboardButton(
+                    f"{name} @{username or 'NO'} | {uid}",
+                    callback_data=f"reply_support|{uid}"
+                )
+            ])
+        if not chats:
+            chats = [[InlineKeyboardButton("لا يوجد دردشات دعم", callback_data="ignore")]]
+        await safe_edit(q, "🆘 دردشات الدعم النشطة:", InlineKeyboardMarkup(chats))
     else:
         await safe_edit(q, "رجوع ...")
+
+async def reply_support_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    _, uid = q.data.split("|", 1)
+    await q.answer("أرسل ردك الآن، وسيتم إرساله لهذا المستخدم مباشرة.")
+    context.user_data["support_reply_to"] = int(uid)
+    await q.message.reply_text(f"📝 اكتب الآن رسالتك وسيتم إرسالها إلى المستخدم {uid}.")
 
 # ============ بث/إعلان ============
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -200,21 +219,35 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ============ دعم فني ============
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    support_chats[update.effective_user.id] = True
-    await update.message.reply_text("✉️ أرسل رسالتك الآن وسيتم تحويلها للأدمن.")
+    user = update.effective_user
+    await update.message.reply_text("✉️ اكتب رسالتك للدعم وسيتم تحويلها للأدمن.")
+    active_support_chats[user.id] = {
+        "name": fullname(user),
+        "username": user.username,
+    }
 
 async def support_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    if uid in support_chats:
-        await context.bot.send_message(
+    if uid in active_support_chats:
+        admin_msg = await context.bot.send_message(
             ADMIN_ID,
-            f"💬 رسالة دعم من {fullname(update.effective_user)}\n\n{update.message.text}"
+            f"💬 دعم جديد من {fullname(update.effective_user)}\nID: {update.effective_user.id}\nUsername: @{update.effective_user.username or 'NO'}\n\n{update.message.text}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("رد عليه", callback_data=f"reply_support|{uid}")]])
         )
-        await update.message.reply_text("✅ تم إرسال رسالتك للدعم الفني، سيقوم الأدمن بالرد قريباً.")
-        support_chats.pop(uid)
-    elif update.message.reply_to_message and update.message.reply_to_message.from_user.id == ADMIN_ID:
-        ref_uid = int(update.message.reply_to_message.text.split("من ")[-1].split("\n")[0])
-        await context.bot.send_message(ref_uid, f"🟢 رد الأدمن:\n{update.message.text}")
+        active_support_chats[uid]["admin_msg_id"] = admin_msg.message_id
+        await update.message.reply_text("✅ تم إرسال رسالتك للدعم الفني. انتظر رد الأدمن.")
+        return
+    # إذا كان الأدمن يرد
+    if uid == ADMIN_ID and context.user_data.get("support_reply_to"):
+        target_id = context.user_data["support_reply_to"]
+        await context.bot.send_message(
+            target_id,
+            f"🟢 رد الأدمن:\n{update.message.text}"
+        )
+        await update.message.reply_text("✅ تم إرسال الرد.")
+        active_support_chats.pop(target_id, None)
+        context.user_data["support_reply_to"] = None
+        return
 
 # ============ اشتراك ============
 async def subscribe_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -270,19 +303,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     uid = user.id
 
-    # دعم فني
-    if text.startswith("/support"):
-        await support_start(update, context)
+    # دعم فني مباشر
+    if uid in active_support_chats or (uid == ADMIN_ID and context.user_data.get("support_reply_to")):
+        await support_msg(update, context)
         return
 
     # بث للأدمن
     if uid == ADMIN_ID and broadcast_mode.get(ADMIN_ID):
         await broadcast(update, context)
-        return
-
-    # دعم فني مباشر
-    if uid in support_chats:
-        await support_msg(update, context)
         return
 
     # روابط فيديوهات
@@ -333,7 +361,8 @@ async def button_handler(update, context):
         await q.answer("⚠️ انتهت صلاحية الرابط.")
         return
 
-    outfile = f"{msg_id}.{'mp3' if action == 'audio' else 'mp4'}"
+    os.makedirs("downloads", exist_ok=True)
+    outfile = f"downloads/{msg_id}.{'mp3' if action == 'audio' else 'mp4'}"
     await q.edit_message_text("⏳ جاري التحميل ... شايك على الإبداع!")
 
     # yt-dlp command
@@ -358,59 +387,62 @@ async def button_handler(update, context):
         url_store.pop(msg_id, None)
         return
 
-    downloaded_files = glob.glob(f"{msg_id}.*")
-    if not downloaded_files:
+    if not os.path.exists(outfile):
         await context.bot.send_message(uid, "❌ لم أستطع العثور على الملف النهائي!")
         url_store.pop(msg_id, None)
         return
 
-    outfile = downloaded_files[0]
-    with open(outfile, "rb") as f:
-        if action == "audio":
-            await context.bot.send_audio(uid, f, caption=caption)
-        else:
-            await context.bot.send_video(uid, f, caption=caption)
-    # حذف الملفات المؤقتة والرسائل
-    for file in downloaded_files:
-        try: os.remove(file)
+    # Send file
+    try:
+        with open(outfile, "rb") as f:
+            if action == "audio":
+                await context.bot.send_audio(uid, f, caption=caption)
+            else:
+                await context.bot.send_video(uid, f, caption=caption)
+        await q.message.delete()
+    except Exception as e:
+        await context.bot.send_message(uid, f"❌ خطأ أثناء الإرسال: {e}")
+    finally:
+        try:
+            os.remove(outfile)
         except Exception: pass
-    url_store.pop(msg_id, None)
-    try: await q.message.delete()
-    except: pass
+        url_store.pop(msg_id, None)
 
-# ============ Webhook / تسجيل المعالجات ============
-application = Application.builder().token(BOT_TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(subscribe_request,    pattern=r"^subscribe_request$"))
-application.add_handler(CallbackQueryHandler(confirm_sub,          pattern=r"^confirm_sub\|"))
-application.add_handler(CallbackQueryHandler(reject_sub,           pattern=r"^reject_sub\|"))
-application.add_handler(CallbackQueryHandler(button_handler,       pattern=r"^(video|audio|cancel)\|"))
-application.add_handler(CallbackQueryHandler(admin_panel_callback, pattern=r"^admin_"))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-application.add_handler(MessageHandler(filters.ALL, broadcast))
+# ============ تسجيل الهاندلرات ============
+app = Application.builder().token(BOT_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern="^admin_"))
+app.add_handler(CallbackQueryHandler(subscribe_request, pattern="^subscribe_request$"))
+app.add_handler(CallbackQueryHandler(confirm_sub, pattern="^confirm_sub\|"))
+app.add_handler(CallbackQueryHandler(reject_sub, pattern="^reject_sub\|"))
+app.add_handler(CallbackQueryHandler(button_handler, pattern="^(video|audio|cancel)\|"))
+app.add_handler(CallbackQueryHandler(reply_support_callback, pattern="^reply_support\|"))
+app.add_handler(CommandHandler("support", support_start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
+# ============ Webhook aiohttp ============
 async def handle(request):
     if request.method == "POST":
         data = await request.json()
-        update = Update.de_json(data, application.bot)
-        await application.process_update(update)
+        update = Update.de_json(data, app.bot)
+        await app.process_update(update)
         return web.Response(text="ok")
     return web.Response(status=405)
 
-app = web.Application()
-app.router.add_post(f"/{BOT_TOKEN}", handle)
+aioapp = web.Application()
+aioapp.router.add_post(f"/{BOT_TOKEN}", handle)
 
-async def on_startup(app):
-    await application.initialize()
-    await application.start()
+async def on_startup(aioapp):
+    await app.initialize()
+    await app.start()
 
-async def on_cleanup(app):
-    await application.stop()
-    await application.shutdown()
+async def on_cleanup(aioapp):
+    await app.stop()
+    await app.shutdown()
 
-app.on_startup.append(on_startup)
-app.on_cleanup.append(on_cleanup)
+aioapp.on_startup.append(on_startup)
+aioapp.on_cleanup.append(on_cleanup)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 10000))
-    web.run_app(app, host="0.0.0.0", port=port)
+    web.run_app(aioapp, host="0.0.0.0", port=port)
