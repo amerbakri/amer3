@@ -109,35 +109,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "أهلاً! أرسل رابط فيديو لتحميله، أو اسألني أي سؤال وسيتم الرد عليك."
     )
 
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    text = update.message.text.strip()
-
-    if not check_limits(user_id, "video"):
-        await update.message.reply_text("🚫 انتهى الحد المجاني من تنزيل الفيديو.")
-        return
-
-    if text.startswith("http://") or text.startswith("https://"):
-        msg_id = str(update.message.message_id)
-        url_store[msg_id] = text
-
-        keyboard = [
-            [InlineKeyboardButton("▶️ تحميل فيديو", callback_data=f"download_video|{msg_id}")],
-            [InlineKeyboardButton("🎵 تحميل صوت MP3", callback_data=f"download_audio|{msg_id}")],
-            [InlineKeyboardButton("❌ إلغاء", callback_data=f"cancel|{msg_id}")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await update.message.reply_text("اختر نوع التحميل:", reply_markup=reply_markup)
-
-    else:
-        await update.message.chat.send_action(ChatAction.TYPING)
-        try:
-            answer = await ask_openai(text)
-            await update.message.reply_text(answer)
-        except Exception as e:
-            await update.message.reply_text(f"❌ خطأ في الرد: {e}")
-
 async def download_background(url, output_file, is_audio, context, user_id, msg):
     try:
         await msg.edit_text("⏳ جاري التحميل، انتظر قليلاً...")
@@ -146,28 +117,18 @@ async def download_background(url, output_file, is_audio, context, user_id, msg)
         func = functools.partial(download_audio if is_audio else download_video, url, output_file)
         await loop.run_in_executor(None, func)
 
-        # هنا نحدد المسار الصحيح للملف للإرسال
+        # نحدد اسم الملف الصح بعد التحويل
         if is_audio:
-            file_path = output_file + ".mp3"  # اضف .mp3 عند الفتح والإرسال
+            file_path = output_file + ".mp3"
         else:
             file_path = output_file
 
         print(f"فتح الملف للإرسال: {file_path}")
-    if is_audio:
-    file_path = output_file + ".mp3"
-    else:
-    file_path = output_file
-
-    with open(file_path, "rb") as file:
-    if is_audio:
-        await context.bot.send_audio(chat_id=user_id, audio=file, caption="🎵 الصوت فقط")
-    else:
-        await context.bot.send_video(chat_id=user_id, video=file)
-
-        await context.bot.send_audio(chat_id=user_id, audio=file, caption="🎵 الصوت فقط")
-    else:
-        await context.bot.send_video(chat_id=user_id, video=file)
-
+        with open(file_path, "rb") as file:
+            if is_audio:
+                await context.bot.send_audio(chat_id=user_id, audio=file, caption="🎵 الصوت فقط")
+            else:
+                await context.bot.send_video(chat_id=user_id, video=file)
 
         await msg.edit_text("✅ تم التحميل والإرسال بنجاح.")
     except Exception as e:
