@@ -223,7 +223,8 @@ async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
     await update.message.reply_text(f"تم إرسال الإعلان إلى {sent} مستخدم.")
 
-# ========= تسجيل المعالجات =========
+# ========= تسجيل المعالجات ========
+application = Application.builder().token(BOT_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("support", support_start))
 application.add_handler(CommandHandler("broadcast", admin_broadcast))
