@@ -20,7 +20,7 @@ from telegram.ext import (
     filters,
 )
 
-# ======= الإعدادات =======
+# ========= الإعدادات =========
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -32,11 +32,9 @@ openai.api_key = OPENAI_API_KEY
 SUBSCRIPTIONS_FILE = "subscriptions.json"
 USERS_FILE = "users.txt"
 url_store = {}
-support_chats = {}
+support_chats = {}  # {user_id: admin_id}
 
-application = Application.builder().token(BOT_TOKEN).build()
-
-# ======= إدارة الاشتراكات =======
+# ========= إدارة الاشتراكات والصلاحيات =========
 def load_subscriptions():
     if not os.path.exists(SUBSCRIPTIONS_FILE):
         return {}
@@ -53,8 +51,9 @@ def is_paid_user(user_id):
 
 def check_limits(user_id, action):
     if is_paid_user(user_id):
-        return True
-    return True  # اضبط حسب الحاجة للحد المجاني
+        return True  # لا حد للمشتركين المدفوعين
+    # هنا ممكن تضيف نظام عد الاستخدام اليومي للمجانيين
+    return True  # مؤقتًا السماح للجميع
 
 def register_user(user_id):
     if not os.path.exists(USERS_FILE):
@@ -65,10 +64,10 @@ def register_user(user_id):
         if str(user_id) not in users:
             f.write(f"{user_id}\n")
 
-# ======= تحميل الفيديو والصوت =======
+# ========= تحميل الفيديو والصوت =========
 def download_video(url, output_file):
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
+        'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',
         'outtmpl': output_file,
         'quiet': True,
         'no_warnings': True,
@@ -91,7 +90,7 @@ def download_audio(url, output_file):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
 
-# ======= الذكاء الاصطناعي =======
+# ========= ذكاء اصطناعي =========
 async def ask_openai(prompt):
     response = await openai.ChatCompletion.acreate(
         model="gpt-3.5-turbo",
@@ -100,7 +99,7 @@ async def ask_openai(prompt):
     )
     return response.choices[0].message.content.strip()
 
-# ======= أوامر البوت =======
+# ========= أوامر البوت =========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     register_user(user_id)
@@ -188,12 +187,50 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await download_background(url, output_file, is_audio, context, query.from_user.id, query.message)
 
-# ======= تسجيل المعالجات =======
+# ========= دعم فني =========
+async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    support_chats[user_id] = None
+    await update.message.reply_text("✅ تم فتح غرفة الدعم الفني، تواصل معنا!")
+
+async def support_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id in support_chats:
+        await update.message.reply_text("تم استلام رسالتك في الدعم الفني.")
+    else:
+        await update.message.reply_text("لم تقم بفتح غرفة دعم، ارسل /support للبدء.")
+
+# ========= بث إعلان للأدمن =========
+async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin_id = 337597459  # عدل هذا للايدي الأدمن
+    if update.effective_user.id != admin_id:
+        await update.message.reply_text("🚫 هذا الأمر خاص بالأدمن فقط.")
+        return
+    text = " ".join(context.args)
+    if not text:
+        await update.message.reply_text("اكتب نص الإعلان بعد الأمر.")
+        return
+
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
+        users = f.read().splitlines()
+
+    sent = 0
+    for uid in users:
+        try:
+            await context.bot.send_message(chat_id=int(uid), text=text)
+            sent += 1
+        except Exception:
+            pass
+    await update.message.reply_text(f"تم إرسال الإعلان إلى {sent} مستخدم.")
+
+# ========= تسجيل المعالجات =========
 application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("support", support_start))
+application.add_handler(CommandHandler("broadcast", admin_broadcast))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 application.add_handler(CallbackQueryHandler(button_handler))
 
-# ======= Webhook aiohttp =======
+# ========= Webhook aiohttp =========
 async def handle(request):
     if request.method == "POST":
         data = await request.json()
