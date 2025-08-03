@@ -15,7 +15,7 @@ from telegram.ext import (
 )
 import openai
 
-ADMIN_ID = 337597459  # غيّر لآيديك
+ADMIN_ID = 337597459  # غيّر لآيديك!
 ORANGE_NUMBER = "0781200500"
 BOT_TOKEN = os.getenv("BOT_TOKEN", "ضع_توكن_البوت")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "ضع_OPENAI")
@@ -36,8 +36,9 @@ quality_map = {
     "480": "bestvideo[height<=480]+bestaudio/best",
     "360": "bestvideo[height<=360]+bestaudio/best",
 }
-active_support_chats = {}  # user_id: {"admin_msg_id": x, "username": y, ...}
+active_support_chats = {}  # user_id: {"name": ..., "username": ..., "waiting": True}
 
+# -------------- أدوات بسيطة --------------
 def load_json(path, default=None):
     if not os.path.exists(path):
         return default or {}
@@ -112,7 +113,7 @@ async def safe_edit(query, text, kb=None):
     except:
         pass
 
-# ============ أوامر ولوحة الأدمن ============
+# ============ لوحة الأدمن ============
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id == ADMIN_ID:
@@ -174,11 +175,9 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         chats = []
         for uid in active_support_chats:
             info = active_support_chats[uid]
-            name = info["name"]
-            username = info["username"]
             chats.append([
                 InlineKeyboardButton(
-                    f"{name} @{username or 'NO'} | {uid}",
+                    f"{info['name']} @{info['username']} | {uid}",
                     callback_data=f"reply_support|{uid}"
                 )
             ])
@@ -217,27 +216,33 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 continue
         await update.message.reply_text(f"تم إرسال الإعلان إلى {sent} مستخدم.")
 
-# ============ دعم فني ============
+# ============ دعم فني تفاعلي ============
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await update.message.reply_text("✉️ اكتب رسالتك للدعم وسيتم تحويلها للأدمن.")
     active_support_chats[user.id] = {
         "name": fullname(user),
-        "username": user.username,
+        "username": user.username or "NO",
+        "waiting": True
     }
+    await update.message.reply_text("✉️ أرسل رسالتك الآن وسيتم تحويلها فوراً للأدمن.")
 
 async def support_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    if uid in active_support_chats:
-        admin_msg = await context.bot.send_message(
+    # المستخدم يرسل دعم
+    if uid in active_support_chats and active_support_chats[uid].get("waiting"):
+        info = active_support_chats[uid]
+        msg = await context.bot.send_message(
             ADMIN_ID,
-            f"💬 دعم جديد من {fullname(update.effective_user)}\nID: {update.effective_user.id}\nUsername: @{update.effective_user.username or 'NO'}\n\n{update.message.text}",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("رد عليه", callback_data=f"reply_support|{uid}")]])
+            f"💬 دعم جديد:\n👤 {info['name']} | @{info['username']} | {uid}\n\n{update.message.text}",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("رد عليه", callback_data=f"reply_support|{uid}")]]
+            )
         )
-        active_support_chats[uid]["admin_msg_id"] = admin_msg.message_id
-        await update.message.reply_text("✅ تم إرسال رسالتك للدعم الفني. انتظر رد الأدمن.")
+        active_support_chats[uid]["waiting"] = False  # الآن بانتظار رد الأدمن فقط
+        active_support_chats[uid]["admin_msg_id"] = msg.message_id
+        await update.message.reply_text("✅ تم إرسال رسالتك، انتظر رد الأدمن.")
         return
-    # إذا كان الأدمن يرد
+    # الأدمن يرد
     if uid == ADMIN_ID and context.user_data.get("support_reply_to"):
         target_id = context.user_data["support_reply_to"]
         await context.bot.send_message(
@@ -392,7 +397,6 @@ async def button_handler(update, context):
         url_store.pop(msg_id, None)
         return
 
-    # Send file
     try:
         with open(outfile, "rb") as f:
             if action == "audio":
@@ -403,9 +407,8 @@ async def button_handler(update, context):
     except Exception as e:
         await context.bot.send_message(uid, f"❌ خطأ أثناء الإرسال: {e}")
     finally:
-        try:
-            os.remove(outfile)
-        except Exception: pass
+        try: os.remove(outfile)
+        except: pass
         url_store.pop(msg_id, None)
 
 # ============ تسجيل الهاندلرات ============
