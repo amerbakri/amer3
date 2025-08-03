@@ -146,10 +146,14 @@ async def download_background(url, output_file, is_audio, context, user_id, msg)
         func = functools.partial(download_audio if is_audio else download_video, url, output_file)
         await loop.run_in_executor(None, func)
 
-        # أضف .mp3 عند فتح الملف الصوتي بعد التحويل
-        file_path = output_file + ".mp3" if is_audio else output_file
+        # هنا نحدد المسار الصحيح للملف للإرسال
+        if is_audio:
+            file_path = output_file + ".mp3"  # اضف .mp3 عند الفتح والإرسال
+        else:
+            file_path = output_file
 
         print(f"فتح الملف للإرسال: {file_path}")
+
         with open(file_path, "rb") as file:
             if is_audio:
                 await context.bot.send_audio(chat_id=user_id, audio=file, caption="🎵 الصوت فقط")
@@ -165,6 +169,7 @@ async def download_background(url, output_file, is_audio, context, user_id, msg)
             os.remove(file_path)
             print(f"تم حذف الملف المؤقت: {file_path}")
         url_store.pop(msg.message_id if hasattr(msg, 'message_id') else msg, None)
+
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
