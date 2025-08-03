@@ -340,7 +340,7 @@ app.add_handler(CallbackQueryHandler(reject_sub,           pattern=r"^reject_sub
 app.add_handler(CallbackQueryHandler(button_handler,       pattern=r"^(video|audio|cancel)\|"))
 app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern=r"^admin_"))
 # (أضف باقي الكول باك هاندلرز الإدارية والدعم الفني هنا)
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_router))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 # ... وباقي الهاندلرز مثل دعم الوسائط، OCR... (كما هو في كودك الأخير)
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8443))
