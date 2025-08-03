@@ -153,14 +153,17 @@ async def download_background(url, output_file, is_audio, context, user_id, msg)
             file_path = output_file
 
         print(f"فتح الملف للإرسال: {file_path}")
-
-        if is_audio:
+    if is_audio:
     file_path = output_file + ".mp3"
-else:
+    else:
     file_path = output_file
 
-with open(file_path, "rb") as file:
+    with open(file_path, "rb") as file:
     if is_audio:
+        await context.bot.send_audio(chat_id=user_id, audio=file, caption="🎵 الصوت فقط")
+    else:
+        await context.bot.send_video(chat_id=user_id, video=file)
+
         await context.bot.send_audio(chat_id=user_id, audio=file, caption="🎵 الصوت فقط")
     else:
         await context.bot.send_video(chat_id=user_id, video=file)
