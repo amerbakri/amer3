@@ -22,3 +22,32 @@
 .youtube.com	TRUE	/	TRUE	1769716799	VISITOR_PRIVACY_METADATA	CgJKTxIEGgAgOA%3D%3D
 .youtube.com	TRUE	/	TRUE	0	YSC	ABiUeSaOaGQ
 .youtube.com	TRUE	/	TRUE	1769711352	__Secure-ROLLOUT_TOKEN	CIzs5ICdg5a1JRC4gJfav-KOAxj9xcbo4OyOAw%3D%3D
+# Netscape HTTP Cookie File
+# http://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file!  Do not edit.
+
+.instagram.com	TRUE	/	TRUE	1788456417	datr	4FWKaL0_SzMRY6nhBvqIj46E
+.instagram.com	TRUE	/	TRUE	1785432417	ig_did	42290807-39AB-40EF-B281-9A18754135CF
+.instagram.com	TRUE	/	TRUE	1788456418	mid	aIpV4AALAAEvxwE5_tBmzUwMqDsV
+.instagram.com	TRUE	/	TRUE	1785432433	ig_nrcb	1
+.instagram.com	TRUE	/	TRUE	1788740867	csrftoken	UbWome4Lj4W5AzcUiomzYkFzoQTE1s2m
+.instagram.com	TRUE	/	TRUE	1761956867	ds_user_id	76229048617
+.instagram.com	TRUE	/	TRUE	1785696822	sessionid	76229048617%3AZ4afz5W4fyqezU%3A15%3AAYc0axVg8Ef84W3Nk32_RmQXh91IPdi9mqHIzJRMNg
+.instagram.com	TRUE	/	TRUE	1754785565	wd	1920x911
+.instagram.com	TRUE	/	TRUE	0	rur	"CLN\05476229048617\0541785716867:01fe468cf7333edd431217649afd4d5fd3aa7fdede240d9c052b649e44b70b68c357efca"
+# Netscape HTTP Cookie File
+# http://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file!  Do not edit.
+
+.facebook.com	TRUE	/	TRUE	1788366570	datr	6vaIaFFplAxEosL2Q2b8ApuZ
+.facebook.com	TRUE	/	TRUE	1788456311	sb	6vaIaMeYlIEW477DNhBIdvSX
+.facebook.com	TRUE	/	TRUE	1788368671	ps_l	1
+.facebook.com	TRUE	/	TRUE	1788368671	ps_n	1
+.facebook.com	TRUE	/	TRUE	1754415309	locale	ar_AR
+.facebook.com	TRUE	/	TRUE	1785716770	c_user	100004473547443
+.facebook.com	TRUE	/	TRUE	0	ar_debug	1
+.facebook.com	TRUE	/	TRUE	1754785880	wd	1920x911
+.facebook.com	TRUE	/	TRUE	1785716770	xs	49%3AB0uItCBcaX8dxg%3A2%3A1753896306%3A-1%3A-1%3A%3AAcUdq46lHg0GZh0FTPVrMMFVwyUQXQl-TlT7ULtPzfs
+.facebook.com	TRUE	/	TRUE	1761957078	fr	1yfHDR4KASVZWvjsr.AWeXiP1tb-fwUwN1MMehXcN6u1ZxnMalqp-3LJUSu3Cp5AKwEMk.Bojqyh..AAA.0.0.Bojq3W.AWdn95Y2_ToKgfOLgzIwzQiPpJo
+.facebook.com	TRUE	/	TRUE	0	presence	C%7B%22t3%22%3A%5B%5D%2C%22utc3%22%3A1754181081441%2C%22v%22%3A1%7D
+
