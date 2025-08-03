@@ -74,6 +74,11 @@ def download_video(url, output_file):
     print(f"Video downloaded: {output_file}")
 
 def download_audio(url, output_file):
+    # احذف الامتداد لو كان mp3 لتوافق yt-dlp مع التحويل
+    base, ext = os.path.splitext(output_file)
+    if ext.lower() == '.mp3':
+        output_file = base
+
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_file,
@@ -87,7 +92,7 @@ def download_audio(url, output_file):
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
-    print(f"Audio downloaded: {output_file}")
+    print(f"Audio downloaded (converted): {output_file}.mp3")
 
 async def ask_openai(prompt):
     response = await openai.ChatCompletion.acreate(
@@ -141,8 +146,11 @@ async def download_background(url, output_file, is_audio, context, user_id, msg)
         func = functools.partial(download_audio if is_audio else download_video, url, output_file)
         await loop.run_in_executor(None, func)
 
-        print(f"فتح الملف للإرسال: {output_file}")
-        with open(output_file, "rb") as file:
+        # أضف .mp3 عند فتح الملف الصوتي بعد التحويل
+        file_path = output_file + ".mp3" if is_audio else output_file
+
+        print(f"فتح الملف للإرسال: {file_path}")
+        with open(file_path, "rb") as file:
             if is_audio:
                 await context.bot.send_audio(chat_id=user_id, audio=file, caption="🎵 الصوت فقط")
             else:
@@ -153,9 +161,9 @@ async def download_background(url, output_file, is_audio, context, user_id, msg)
         print(f"خطأ أثناء إرسال الملف: {e}")
         await context.bot.send_message(chat_id=user_id, text=f"❌ حدث خطأ أثناء التحميل أو الإرسال: {e}")
     finally:
-        if os.path.exists(output_file):
-            os.remove(output_file)
-            print(f"تم حذف الملف المؤقت: {output_file}")
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"تم حذف الملف المؤقت: {file_path}")
         url_store.pop(msg.message_id if hasattr(msg, 'message_id') else msg, None)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
