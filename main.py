@@ -330,7 +330,7 @@ async def button_handler(update, context):
     url_store.pop(msg_id, None)
     try: await q.message.delete()
     except: pass
-        async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text.strip()
 
@@ -349,6 +349,7 @@ async def button_handler(update, context):
         await update.message.reply_text("🔽 اختر نوع التحميل:", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         await update.message.reply_text("اكتب لي رابط فيديو أو ملف!")
+
 
 
 
