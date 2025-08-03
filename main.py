@@ -1,9 +1,9 @@
 import os
 import json
+import random
+import yt_dlp
 import asyncio
 import functools
-import yt_dlp
-import openai
 from aiohttp import web
 from telegram import (
     Update,
@@ -21,95 +21,82 @@ from telegram.ext import (
 )
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ADMIN_ID = 337597459  # عدل هذا الرقم لو أردت
-
-if not BOT_TOKEN or not OPENAI_API_KEY:
-    raise RuntimeError("BOT_TOKEN و OPENAI_API_KEY لازم يكونوا مضبوطين في المتغيرات البيئية.")
-
-openai.api_key = OPENAI_API_KEY
-
-SUBSCRIPTIONS_FILE = "subscriptions.json"
-USERS_FILE = "users.txt"
+ADMIN_ID = 337597459  # عدل آيديك هنا
+SUBS_FILE = "subscriptions.json"
 url_store = {}
+DOWNLOADS_DIR = "downloads"
+os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 application = Application.builder().token(BOT_TOKEN).build()
 
-def load_subscriptions():
-    if not os.path.exists(SUBSCRIPTIONS_FILE):
-        return {}
-    with open(SUBSCRIPTIONS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_subscriptions(data):
-    with open(SUBSCRIPTIONS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-def is_paid_user(user_id):
-    subs = load_subscriptions()
-    return subs.get(str(user_id), False)
+# ========== الاشتراك ==========
+def load_subs():
+    if not os.path.exists(SUBS_FILE): return {}
+    with open(SUBS_FILE, encoding="utf-8") as f: return json.load(f)
+def save_subs(d):
+    with open(SUBS_FILE, "w", encoding="utf-8") as f: json.dump(d, f, ensure_ascii=False, indent=2)
+def is_paid(uid): return str(uid) in load_subs()
+def deactivate_subscription(uid):
+    subs = load_subs()
+    if str(uid) in subs:
+        subs.pop(str(uid))
+        save_subs(subs)
 
 def check_limits(user_id, action):
-    if user_id == ADMIN_ID:
-        return True  # الأدمن لا يوجد عليه حدود أبداً
-    if is_paid_user(user_id):
-        return True
-    return True  # لتبسيط المثال، السماح للجميع
+    if user_id == ADMIN_ID: return True
+    if is_paid(user_id): return True
+    # ضع هنا منطق الحد اليومي إذا أردت
+    return True  # بدون حدود حاليًا
 
 def register_user(user_id):
-    if not os.path.exists(USERS_FILE):
-        with open(USERS_FILE, "w", encoding="utf-8") as f:
-            f.write("")
-    with open(USERS_FILE, "r+", encoding="utf-8") as f:
-        users = f.read().splitlines()
-        if str(user_id) not in users:
-            f.write(f"{user_id}\n")
+    # تسجيل المستخدمين الجدد (اختياري حسب رغبتك)
+    pass
 
+# ========== تحميل الفيديو والصوت ==========
 def download_video(url, output_file):
     ydl_opts = {
         'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',
         'outtmpl': output_file,
-        'quiet': False,
-        'no_warnings': False,
+        'quiet': True,
+        'no_warnings': True,
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-    print(f"Video downloaded: {output_file}")
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([url])
 
 def download_audio(url, output_file):
     base, ext = os.path.splitext(output_file)
-    if ext.lower() == '.mp3':
+    if ext.lower() == ".mp3":
         output_file = base
-
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_file,
-        'quiet': False,
-        'no_warnings': False,
+        'quiet': True,
+        'no_warnings': True,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-    print(f"Audio downloaded (converted): {output_file}.mp3")
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([url])
 
-async def ask_openai(prompt):
-    response = await openai.ChatCompletion.acreate(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=500,
-    )
-    return response.choices[0].message.content.strip()
+# ========== ردود عشوائية ==========
+FUN_MESSAGES = [
+    "استمتع بالمشاهدة! 😉",
+    "ها هو الملف، جيبلي فشار! 🍿",
+    "تم التنزيل يا معلم 🚀",
+    "جاهز للتحميل… شغّل السماعات! 🎧",
+    "إن شاء الله يعجبك 😎"
+]
 
+def random_fun():
+    return random.choice(FUN_MESSAGES)
+
+# ========== الأوامر ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    register_user(user_id)
     await update.message.reply_text(
-        "أهلاً! أرسل رابط فيديو لتحميله، أو اسألني أي سؤال وسيتم الرد عليك.\n\n"
-        "الأدمن يمكنه إدارة الاشتراكات المدفوعة بالأمر /subscribers"
+        "👋 مرحباً بك!\n\n"
+        "أرسل رابط فيديو وسيظهر لك خيارات التحميل.\n"
+        "لوحة إدارة الاشتراكات: /subscribers"
     )
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -123,71 +110,56 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text.startswith("http://") or text.startswith("https://"):
         msg_id = str(update.message.message_id)
         url_store[msg_id] = text
-
         keyboard = [
             [InlineKeyboardButton("▶️ تحميل فيديو", callback_data=f"download_video|{msg_id}")],
             [InlineKeyboardButton("🎵 تحميل صوت MP3", callback_data=f"download_audio|{msg_id}")],
             [InlineKeyboardButton("❌ إلغاء", callback_data=f"cancel|{msg_id}")]
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await update.message.reply_text("اختر نوع التحميل:", reply_markup=reply_markup)
-
+        await update.message.reply_text("🔽 اختر نوع التحميل:", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         await update.message.chat.send_action(ChatAction.TYPING)
-        try:
-            answer = await ask_openai(text)
-            await update.message.reply_text(answer)
-        except Exception as e:
-            await update.message.reply_text(f"❌ خطأ في الرد: {e}")
+        # هنا يمكنك ربط أي ذكاء اصطناعي أو دردشة
+        await update.message.reply_text("اكتب لي رابط فيديو أو ملف!")
 
-async def download_background(url, output_file, is_audio, context, user_id, msg):
+async def download_background(url, output_file, is_audio, context, user_id, loading_msg, reply_msg_id):
     try:
-        await msg.edit_text("⏳ جاري التحميل، انتظر قليلاً...")
-
         loop = asyncio.get_running_loop()
         func = functools.partial(download_audio if is_audio else download_video, url, output_file)
         await loop.run_in_executor(None, func)
 
-        if is_audio:
-            file_path = output_file + ".mp3"
-        else:
-            file_path = output_file
-
-        print(f"فتح الملف للإرسال: {file_path}")
+        # تحديد اسم الملف النهائي
+        file_path = output_file + ".mp3" if is_audio else output_file
         with open(file_path, "rb") as file:
             if is_audio:
-                await context.bot.send_audio(chat_id=user_id, audio=file, caption="🎵 الصوت فقط")
+                await context.bot.send_audio(chat_id=user_id, audio=file, caption=random_fun(), reply_to_message_id=reply_msg_id)
             else:
-                await context.bot.send_video(chat_id=user_id, video=file)
-
-        await msg.edit_text("✅ تم التحميل والإرسال بنجاح.")
+                await context.bot.send_video(chat_id=user_id, video=file, caption=random_fun(), reply_to_message_id=reply_msg_id)
+        # حذف رسالة جاري التحميل
+        await loading_msg.delete()
     except Exception as e:
-        print(f"خطأ أثناء إرسال الملف: {e}")
-        await context.bot.send_message(chat_id=user_id, text=f"❌ حدث خطأ أثناء التحميل أو الإرسال: {e}")
+        await loading_msg.edit_text(f"❌ حدث خطأ أثناء التحميل أو الإرسال: {e}")
     finally:
+        # حذف الملف المؤقت
         if os.path.exists(file_path):
             os.remove(file_path)
-            print(f"تم حذف الملف المؤقت: {file_path}")
-        url_store.pop(msg.message_id if hasattr(msg, 'message_id') else msg, None)
+        # حذف الرابط من التخزين المؤقت
+        url_store.pop(str(reply_msg_id), None)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
 
+    # زر إلغاء اشتراك مدفوع
     if data.startswith("cancel_paid|"):
+        if query.from_user.id != ADMIN_ID:
+            await query.edit_message_text("❌ فقط الأدمن يمكنه إلغاء الاشتراك.")
+            return
         _, uid = data.split("|", 1)
-        subs = load_subscriptions()
-        if uid in subs:
-            del subs[uid]
-            save_subscriptions(subs)
-            await query.edit_message_text(f"تم إلغاء اشتراك المستخدم {uid}.")
-        else:
-            await query.edit_message_text("هذا المستخدم غير موجود أو غير مشترك.")
+        deactivate_subscription(uid)
+        await query.edit_message_text(f"✅ تم إلغاء اشتراك {uid}.")
         return
 
-    # باقي الأزرار
     if "|" in data:
         action, msg_id = data.split("|", 1)
         url = url_store.get(msg_id)
@@ -199,35 +171,32 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("⚠️ انتهت صلاحية الرابط.")
             return
 
-        output_dir = "downloads"
-        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(DOWNLOADS_DIR, f"{msg_id}.mp4")
         is_audio = action == "download_audio"
-        output_file = os.path.join(output_dir, f"{msg_id}.mp3" if is_audio else f"{msg_id}.mp4")
-        await download_background(url, output_file, is_audio, context, query.from_user.id, query.message)
+        loading_msg = await query.message.edit_text("⏳ جاري التحميل...")
+        # حذف رسالة الرابط الأصلي (لو موجودة)
+        try:
+            await context.bot.delete_message(chat_id=query.message.chat_id, message_id=int(msg_id))
+        except Exception:
+            pass
+        await download_background(url, output_file, is_audio, context, query.from_user.id, loading_msg, int(msg_id))
 
+# لوحة الأدمن لعرض المشتركين المدفوعين مع زر إلغاء بجانب كل واحد
 async def list_paid_subscribers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_ID:
         await update.message.reply_text("❌ الأمر للمشرف فقط.")
         return
 
-    subs = load_subscriptions()
-    if not subs:
-        await update.message.reply_text("لا يوجد مشتركين مدفوعين حالياً.")
-        return
-
+    subs = load_subs()
     keyboard = []
-    for uid, is_active in subs.items():
-        if is_active:
-            keyboard.append([
-                InlineKeyboardButton(
-                    f"إلغاء اشتراك {uid}", callback_data=f"cancel_paid|{uid}"
-                )
-            ])
-
+    for uid in subs.keys():
+        keyboard.append([InlineKeyboardButton(f"❌ إلغاء {uid}", callback_data=f"cancel_paid|{uid}")])
+    if not keyboard:
+        keyboard = [[InlineKeyboardButton("لا يوجد مشتركين", callback_data="none")]]
     await update.message.reply_text(
         "المشتركين المدفوعين:",
-        reply_markup=InlineKeyboardMarkup(keyboard) if keyboard else None
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 application.add_handler(CommandHandler("start", start))
@@ -235,6 +204,7 @@ application.add_handler(CommandHandler("subscribers", list_paid_subscribers))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 application.add_handler(CallbackQueryHandler(button_handler))
 
+# ========== Webhook ==========
 async def handle(request):
     if request.method == "POST":
         data = await request.json()
