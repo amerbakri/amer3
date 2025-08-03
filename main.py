@@ -1,6 +1,8 @@
 import os
 import asyncio
 import yt_dlp
+import functools
+import subprocess
 from aiohttp import web
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -15,83 +17,138 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set!")
 
+COOKIES_FILE = "cookies.txt"  # إذا تستخدم كوكيز (أزل هذا السطر إذا مش محتاج)
+
 application = Application.builder().token(BOT_TOKEN).build()
 
-def get_formats(url):
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'skip_download': True,
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-    formats = info.get('formats', [])
-    available_formats = []
-    for f in formats:
-        if f.get('acodec') != 'none' and f.get('vcodec') != 'none':
-            resolution = f.get('resolution') or f.get('format_note') or "Unknown"
-            filesize = f.get('filesize') or 0
-            available_formats.append({
-                'format_id': f.get('format_id'),
-                'resolution': resolution,
-                'filesize': filesize,
-            })
-    return available_formats
+url_store = {}
 
-def download_by_format(url, format_id, output_file):
-    ydl_opts = {
-        'format': format_id,
+def is_url(text: str) -> bool:
+    return text.startswith("http://") or text.startswith("https://")
+
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    user_id = update.effective_user.id
+    message_id = str(update.message.message_id)
+
+    if not is_url(text):
+        # لو ما كان رابط تجاهل أو رُد برسالة عادية
+        await update.message.reply_text("أرسل رابط فيديو للتحميل.")
+        return
+
+    url_store[message_id] = text
+
+    keyboard = [
+        [InlineKeyboardButton("🎵 صوت فقط", callback_data=f"audio|{message_id}")],
+        [InlineKeyboardButton("❌ إلغاء", callback_data=f"cancel|{message_id}")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        "⏳ جاري تحميل الفيديو بجودة 720p أو أفضل، انتظر قليلاً...",
+        reply_markup=reply_markup
+    )
+
+    # ابدأ التحميل في الخلفية بدون انتظار
+    loop = asyncio.get_running_loop()
+    loop.create_task(download_video_in_background(url=text, msg_id=message_id, context=context, user_id=user_id))
+
+async def download_video_in_background(url, msg_id, context, user_id):
+    output_dir = "downloads"
+    os.makedirs(output_dir, exist_ok=True)
+    output_file = os.path.join(output_dir, f"{msg_id}.mp4")
+
+    # خريطة الجودة: جرب 720p أولًا ثم أفضل جودة متاحة
+    ydl_opts_720p = {
+        'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',
         'outtmpl': output_file,
         'quiet': True,
         'no_warnings': True,
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+    ydl_opts_best = {
+        'format': 'best',
+        'outtmpl': output_file,
+        'quiet': True,
+        'no_warnings': True,
+    }
 
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if text.startswith("https://") or text.startswith("http://"):
-        url = text.strip()
-        await update.message.reply_text("جارٍ جلب الجودات المتاحة...")
-        try:
-            formats = get_formats(url)
-            buttons = []
-            for f in formats:
-                size_mb = f['filesize'] / (1024 * 1024) if f['filesize'] else 0
-                text_btn = f"{f['resolution']} - {size_mb:.2f} MB" if size_mb > 0 else f"{f['resolution']}"
-                buttons.append([InlineKeyboardButton(text_btn, callback_data=f"download:{f['format_id']}:{url}")])
-            reply_markup = InlineKeyboardMarkup(buttons)
-            await update.message.reply_text("اختر الجودة لتحميل الفيديو:", reply_markup=reply_markup)
-        except Exception as e:
-            await update.message.reply_text(f"حدث خطأ أثناء جلب الجودات: {e}")
-    else:
-        # لو حابب ترد على رسائل غير الروابط، اضف هنا
-        pass
+    try:
+        def run_ydl(opts):
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.download([url])
 
-async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        loop = asyncio.get_running_loop()
+        # حاول تحميل 720p أولاً
+        await loop.run_in_executor(None, functools.partial(run_ydl, ydl_opts_720p))
+        # تحقق إذا الملف نزل بنجاح (الحجم > 0)
+        if not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
+            # جرب تحميل أفضل جودة
+            await loop.run_in_executor(None, functools.partial(run_ydl, ydl_opts_best))
+
+        # أرسل الفيديو
+        with open(output_file, "rb") as video_file:
+            await context.bot.send_video(chat_id=user_id, video=video_file)
+    except Exception as e:
+        await context.bot.send_message(chat_id=user_id, text=f"❌ حدث خطأ أثناء التحميل: {e}")
+    finally:
+        # نظف الملف
+        if os.path.exists(output_file):
+            os.remove(output_file)
+        url_store.pop(msg_id, None)
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
     data = query.data
-    if data.startswith("download:"):
-        _, format_id, url = data.split(":", 2)
+    action, msg_id = data.split("|", 1)
+
+    if action == "cancel":
+        await query.message.delete()
+        url_store.pop(msg_id, None)
+        return
+
+    if action == "audio":
+        url = url_store.get(msg_id)
+        if not url:
+            await query.answer("⚠️ انتهت صلاحية الرابط أو لم يتم العثور عليه.")
+            return
+
+        await query.edit_message_text("⏳ جاري تحميل الصوت فقط ...")
+
         output_dir = "downloads"
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f"{query.from_user.id}_{format_id}.mp4")
+        output_file = os.path.join(output_dir, f"{msg_id}.mp3")
 
-        await query.edit_message_text("⏳ جاري تحميل الفيديو ...")
+        ydl_opts_audio = {
+            'format': 'bestaudio/best',
+            'outtmpl': output_file,
+            'quiet': True,
+            'no_warnings': True,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+        }
 
-        loop = asyncio.get_event_loop()
+        def run_audio_ydl():
+            with yt_dlp.YoutubeDL(ydl_opts_audio) as ydl:
+                ydl.download([url])
+
+        loop = asyncio.get_running_loop()
         try:
-            await loop.run_in_executor(None, download_by_format, url, format_id, output_file)
-            with open(output_file, 'rb') as video_file:
-                await query.message.reply_video(video_file)
-            os.remove(output_file)
-            await query.edit_message_text("✅ تم تحميل الفيديو وإرساله.")
-        except Exception as e:
-            await query.edit_message_text(f"❌ حدث خطأ أثناء التحميل: {e}")
+            await loop.run_in_executor(None, run_audio_ydl)
 
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-application.add_handler(CallbackQueryHandler(callback_handler))
+            with open(output_file, "rb") as audio_file:
+                await context.bot.send_audio(chat_id=query.from_user.id, audio=audio_file, caption="🎵 الصوت فقط")
+            await query.edit_message_text("✅ تم تحميل الصوت وإرساله.")
+        except Exception as e:
+            await context.bot.send_message(chat_id=query.from_user.id, text=f"❌ حدث خطأ أثناء تحميل الصوت: {e}")
+        finally:
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            url_store.pop(msg_id, None)
 
 async def handle(request):
     if request.method == "POST":
