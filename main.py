@@ -275,13 +275,26 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ============ دعم فني تفاعلي (مستخدم → أدمن ثم رد) ============
 async def support_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
+    # إذا هو CallbackQuery
+    if update.callback_query:
+        q = update.callback_query
+        await q.answer()
+        user = q.from_user
+        target_msg = q.message
+    else:
+        # هو أمر /support
+        user = update.effective_user
+        target_msg = update.message
+
+    # سجّل المستخدم في قائمة الدعم
     active_support_chats[user.id] = {
         "name": fullname(user),
         "username": user.username or "NO",
         "waiting": True
     }
-    await update.message.reply_text("✉️ أرسل رسالتك الآن وسيتم تحويلها فوراً للأدمن.")
+    # إرسِل الرسالة على نفس الرسالة (زر أو أمر)
+    await target_msg.reply_text("✉️ أرسل رسالتك الآن وسيتم تحويلها فوراً للأدمن.")
+
 
 async def support_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
