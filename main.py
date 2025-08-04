@@ -379,7 +379,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text(
             "⚠️ لا يوجد ملف كوكيز.
 "
-            "يمكنك تحميل الآن بدون كوكيز من فيسبوك/إنستا/تيك توك وسيتم دعمه لاحقاً."
+            "يمكنك تحميل الفيديو الآن مباشرةً من فيسبوك أو إنستاغرام أو تيك توك،
+"
+            "وسيتم دعم التحميل عبر الكوكيز لاحقاً."
         )
         return
     os.makedirs("downloads",exist_ok=True)
