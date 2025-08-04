@@ -382,16 +382,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.answer("⚠️ رابط منتهي.")
         return
 
-    # تصحيح رسالة الكوكيز
     if not os.path.exists(COOKIES_FILE) or os.path.getsize(COOKIES_FILE) == 0:
-    text = (
-        "⚠️ لا يوجد ملف كوكيز.\n"
-        "يمكنك تحميل الفيديو الآن من فيسبوك أو إنستاغرام أو تيك توك.\n"
-        "وسيتم دعمه عبر الكوكيز لاحقاً."
-    )
-    await q.message.reply_text(text)
-    return
-    
+        text = (
+            "⚠️ لا يوجد ملف كوكيز.\n"
+            "يمكنك تحميل الفيديو الآن من فيسبوك أو إنستاغرام أو تيك توك.\n"
+            "وسيتم دعمه عبر الكوكيز لاحقاً."
+        )
+        await q.message.reply_text(text)
+        return
+
     os.makedirs("downloads", exist_ok=True)
     ext = "mp3" if action == "audio" else "mp4"
     outfile = f"downloads/{msg_id}.{ext}"
@@ -446,7 +445,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove(outfile)
         except:
             pass
-
 
 # ------------- App & Webhook Setup -------------
 init_db()
