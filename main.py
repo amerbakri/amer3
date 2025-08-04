@@ -517,40 +517,53 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
-    # أضف هذا السطر لتعريف uid
+    # خذ الـ uid من الـ callback_query
     uid = q.from_user.id
 
     parts = q.data.split("|")
+    # إذا ضغط زر الإلغاء
     if parts[0] == "cancel":
         await q.message.delete()
         url_store.pop(parts[1], None)
         return
 
+    # باقي البيانات
     action, quality, msg_id = parts
     url = url_store.get(msg_id)
     if not url:
         await q.answer("⚠️ انتهت صلاحية الرابط.")
         return
 
+    # جهّز المسار
     os.makedirs("downloads", exist_ok=True)
     ext = "mp3" if action == "audio" else "mp4"
     outfile = f"downloads/{msg_id}.{ext}"
+
+    # عدّل النص ليخبر المستخدم أن التحميل جارٍ
     await q.edit_message_text("⏳ جاري التحميل ...")
 
-    # إعداد أمر yt-dlp وإرساله للاستخراج
+    # جهّز أمر yt-dlp
     if action == "audio":
         cmd = [
             "yt-dlp", "--cookies", COOKIES_FILE,
             "-f", "bestaudio[ext=m4a]/bestaudio/best",
             "--extract-audio", "--audio-format", "mp3",
-            "-o", outfile, url
+            "-o", outfile,
+            url
         ]
         caption = "🎵 استمتع بالصوت فقط!"
     else:
         fmt = quality_map.get(quality, "best")
-        cmd = ["yt-dlp", "--cookies", COOKIES_FILE, "-f", fmt, "-o", outfile, url]
+        cmd = [
+            "yt-dlp", "--cookies", COOKIES_FILE,
+            "-f", fmt,
+            "--merge-output-format", "mp4",    # ← هذا الخيار يضمن إخراج MP4 بالاسم outfile
+            "-o", outfile,
+            url
+        ]
         caption = f"🎬 تم تحميل الفيديو بجودة {quality}p!"
 
+    # نفّذ الأمر في Executor
     runner = functools.partial(subprocess.run, cmd, check=True)
     try:
         await asyncio.get_event_loop().run_in_executor(None, runner)
@@ -559,11 +572,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         url_store.pop(msg_id, None)
         return
 
+    # تأكد من وجود الملف
     if not os.path.exists(outfile):
-        await context.bot.send_message(uid, "❌ لم أستطع العثور على الملف النهائي!")
+        await context.bot.send_message(uid, "❌ لم أتمكن من العثور على الملف النهائي!")
         url_store.pop(msg_id, None)
         return
 
+    # أرسل الملف وحذف الرسالة الأصلية
     try:
         with open(outfile, "rb") as f:
             if action == "audio":
@@ -574,9 +589,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await context.bot.send_message(uid, f"❌ خطأ أثناء الإرسال: {e}")
     finally:
+        # نظّف التخزين المؤقت
         url_store.pop(msg_id, None)
-        try: os.remove(outfile)
-        except: pass
+        try:
+            os.remove(outfile)
+        except:
+            pass
+
 
         url_store.pop(msg_id, None)
 
