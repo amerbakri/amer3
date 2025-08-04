@@ -377,7 +377,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not url: return await q.answer("⚠️ رابط منتهي.")
     if not os.path.exists(COOKIES_FILE) or os.path.getsize(COOKIES_FILE) == 0:
         await q.message.reply_text(
-            "⚠️ لا يوجد ملف كوكيز.
+            "⚠️ لا يوجد ملف كوكي
 "
             "يمكنك تحميل الآن بدون كوكيز من فيسبوك/إنستا/تيك توك وسيتم دعمه لاحقاً."
         )
