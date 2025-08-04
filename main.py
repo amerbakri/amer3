@@ -516,11 +516,16 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+
+    # أضف هذا السطر لتعريف uid
+    uid = q.from_user.id
+
     parts = q.data.split("|")
     if parts[0] == "cancel":
         await q.message.delete()
         url_store.pop(parts[1], None)
         return
+
     action, quality, msg_id = parts
     url = url_store.get(msg_id)
     if not url:
@@ -532,6 +537,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     outfile = f"downloads/{msg_id}.{ext}"
     await q.edit_message_text("⏳ جاري التحميل ...")
 
+    # إعداد أمر yt-dlp وإرساله للاستخراج
     if action == "audio":
         cmd = [
             "yt-dlp", "--cookies", COOKIES_FILE,
@@ -561,15 +567,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         with open(outfile, "rb") as f:
             if action == "audio":
-                await context.bot.send_audio(q.from_user.id, f, caption=caption)
+                await context.bot.send_audio(uid, f, caption=caption)
             else:
-                await context.bot.send_video(q.from_user.id, f, caption=caption)
+                await context.bot.send_video(uid, f, caption=caption)
         await q.message.delete()
     except Exception as e:
-        await context.bot.send_message(q.from_user.id, f"❌ خطأ أثناء الإرسال: {e}")
+        await context.bot.send_message(uid, f"❌ خطأ أثناء الإرسال: {e}")
     finally:
+        url_store.pop(msg_id, None)
         try: os.remove(outfile)
         except: pass
+
         url_store.pop(msg_id, None)
 
 # ============ Register Handlers =============
