@@ -376,22 +376,31 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text(f"❌ خطأ AI: {e}")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q=update.callback_query;await q.answer()
-    uid=q.from_user.id
-    parts=q.data.split("|")
-    if parts[0]=="cancel":
-        await q.message.delete();url_store.pop(parts[1],None);return
-    action,quality,msg_id=parts;url=url_store.get(msg_id)
-    if not url: return await q.answer("⚠️ رابط منتهي.")
+    q = update.callback_query
+    await q.answer()
+    uid = q.from_user.id
+    parts = q.data.split("|")
+    if parts[0] == "cancel":
+        await q.message.delete()
+        url_store.pop(parts[1], None)
+        return
+
+    action, quality, msg_id = parts
+    url = url_store.get(msg_id)
+    if not url:
+        await q.answer("⚠️ رابط منتهي.")
+        return
+
     if not os.path.exists(COOKIES_FILE) or os.path.getsize(COOKIES_FILE) == 0:
         text = (
             "⚠️ لا يوجد ملف كوكيز.\n"
             "يمكنك تحميل الفيديو الآن من فيسبوك أو إنستاغرام أو تيك توك.\n"
-            "وسيتم دعمه عبر الكوكيز لاحقاً."
+            "وسيتم دعم يوتيوب لاحقاً."
         )
         await q.message.reply_text(text)
         return
-    os.makedirs("downloads",exist_ok=True)
+
+    os.makedirs("downloads", exist_ok=True)
     ext = "mp3" if action == "audio" else "mp4"
     outfile = f"downloads/{msg_id}.{ext}"
     await q.edit_message_text("⏳ جاري التحميل...")
@@ -420,13 +429,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     runner = functools.partial(subprocess.run, cmd, check=True)
     try:
         await asyncio.get_event_loop().run_in_executor(None, runner)
-    except subprocess.CalledProcessError as e:
-        await context.bot.send_message(uid, f"❌ فشل التحميل: {e}")
+    except Exception:
+        await context.bot.send_message(uid,
+            "❌ لم نستطع تحميل الفيديو.\n"
+            "يرجى التأكد من صحة الرابط أو المحاولة لاحقاً.\n"
+            "قد يكون الرابط غير مدعوم حالياً أو الكوكيز غير صالح."
+        )
         url_store.pop(msg_id, None)
         return
 
     if not os.path.exists(outfile):
-        await context.bot.send_message(uid, "❌ الملف غير موجود!")
+        await context.bot.send_message(uid,
+            "❌ لم يتم العثور على الملف!\n"
+            "جرب مجدداً أو اختر رابطاً آخر."
+        )
         url_store.pop(msg_id, None)
         return
 
@@ -437,8 +453,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await context.bot.send_video(uid, f, caption=cap)
         await q.message.delete()
-    except Exception as e:
-        await context.bot.send_message(uid, f"❌ خطأ: {e}")
+    except Exception:
+        await context.bot.send_message(uid,
+            "❌ حدث خطأ أثناء إرسال الملف للمستخدم.\n"
+            "جرب رابط آخر أو تواصل مع الدعم."
+        )
     finally:
         url_store.pop(msg_id, None)
         try:
