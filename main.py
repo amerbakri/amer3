@@ -242,7 +242,15 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await safe_edit(q, "🔙 رجوع...")
 
 # ——— بدء دعم مباشر من الأدمن إلى مستخدم —————————
-async def admin_support_user_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# —————————— رد الأدمن على رسالة الدعم ——————————
+async def reply_support_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    # خزننا الـ uid بالـ callback_data على شكل "reply_support|{uid}"
+    _, uid = q.data.split("|", 1)
+    context.user_data["support_reply_to"] = int(uid)
+    await q.message.reply_text(f"📝 اكتب ردك هنا وسيُرسل مباشرةً إلى المستخدم {uid}.")
+    
     q = update.callback_query
     await q.answer()
     uid = int(q.data.split("|")[1])
@@ -561,6 +569,8 @@ app.add_handler(CommandHandler("start", start))
 # الأزرار في لوحة الأدمن
 app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern="^admin_"))
 app.add_handler(CallbackQueryHandler(admin_support_user_callback, pattern="^admin_support_user\\|"))
+app.add_handler(CallbackQueryHandler(reply_support_callback, pattern="^reply_support\\|"))
+
 # اشتراك
 app.add_handler(CallbackQueryHandler(subscribe_request, pattern="^subscribe_request$"))
 app.add_handler(CallbackQueryHandler(confirm_sub, pattern="^confirm_sub\\|"))
