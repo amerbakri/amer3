@@ -550,21 +550,34 @@ app.add_handler(CommandHandler("support", support_start))
 app.add_handler(MessageHandler(~filters.COMMAND,             message_handler))
 
 # ============ Webhook aiohttp =============
+# ============ Webhook aiohttp =============
+# احتفظ بـ `app` كبوت تيليجرام، و أنشئ web_app لخادم aiohttp
+bot_app = app
+
 async def handle(request):
     if request.method == "POST":
         data = await request.json()
-        update = Update.de_json(data, app.bot)
-        await app.process_update(update)
+        update = Update.de_json(data, bot_app.bot)
+        await bot_app.process_update(update)
         return web.Response(text="ok")
     return web.Response(status=405)
 
-aioapp = web.Application()
-aioapp.router.add_post(f"/{BOT_TOKEN}", handle)
-aioapp.on_startup.append(lambda app: app.loop.create_task(app.initialize()))
-aioapp.on_startup.append(lambda app: app.loop.create_task(app.start()))
-aioapp.on_cleanup.append(lambda app: app.loop.create_task(app.stop()))
-aioapp.on_cleanup.append(lambda app: app.loop.create_task(app.shutdown()))
+web_app = web.Application()
+web_app.router.add_post(f"/{BOT_TOKEN}", handle)
+
+# عند بدء web_app نشغّل بوت التيليجرام
+async def on_startup(_):
+    await bot_app.initialize()
+    await bot_app.start()
+
+# عند إيقاف web_app نوقف بوت التيليجرام
+async def on_cleanup(_):
+    await bot_app.stop()
+    await bot_app.shutdown()
+
+web_app.on_startup.append(on_startup)
+web_app.on_cleanup.append(on_cleanup)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 10000))
-    web.run_app(aioapp, host="0.0.0.0", port=port)
+    web.run_app(web_app, host="0.0.0.0", port=port)
