@@ -484,4 +484,3 @@ web_app.on_cleanup.append(lambda _: app.shutdown())
 if __name__=="__main__":
     port=int(os.getenv("PORT",10000))
     web.run_app(web_app,host="0.0.0.0",port=port)
-```
