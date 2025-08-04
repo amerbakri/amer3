@@ -376,13 +376,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action,quality,msg_id=parts;url=url_store.get(msg_id)
     if not url: return await q.answer("⚠️ رابط منتهي.")
     if not os.path.exists(COOKIES_FILE) or os.path.getsize(COOKIES_FILE) == 0:
-        await q.message.reply_text(
+        text = (
             "⚠️ لا يوجد ملف كوكيز.
 "
-            "يمكنك تحميل الفيديو الآن مباشرةً من فيسبوك أو إنستاغرام أو تيك توك،
+            "يمكنك تحميل الفيديو الآن من فيسبوك أو إنستاغرام أو تيك توك.
 "
-            "وسيتم دعم التحميل عبر الكوكيز لاحقاً."
+            "وسيتم دعمه عبر الكوكيز لاحقاً."
         )
+        await q.message.reply_text(text)
         return
     os.makedirs("downloads",exist_ok=True)
     ext = "mp3" if action == "audio" else "mp4"
