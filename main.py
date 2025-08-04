@@ -489,10 +489,11 @@ async def admin_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
             await context.bot.send_message(target_id, "📩 وصلك دعم من الأدمن.")
 
         await update.message.reply_text("✅ تم إرسال رسالتك للمستخدم وتم إنهاء الجلسة.")
-
-        # إنهاء الجلسة فوراً
         context.user_data.pop('support_contact')
         return
+
+    # إذا لم يكن الأدمن في وضع دعم، مرر الرسالة للمعالج الأساسي (AI)
+    return await message_handler(update, context)
 
     # إذا لم يكن الأدمن في وضع دعم، لا تفعل شيء (يمر للرسالة التالية)
     # يمكنك هنا تمرير التنفيذ للـ message_handler إذا أحببت، أو فقط return
