@@ -449,8 +449,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ------------- App & Webhook Setup -------------
+init_db()
 app = Application.builder().token(BOT_TOKEN).build()
-app.on_startup.append(on_startup_db)
 
 # Register Handlers
 app.add_handler(CommandHandler("start", start))
