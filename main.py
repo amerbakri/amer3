@@ -173,10 +173,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+
+    # تأكد أنّه أدمن
     if q.from_user.id != ADMIN_ID:
         return
+
     data = q.data
 
+    # إذا ضغط على زر "🆘 دعم" بجانب مستخدم محدد
+    if data.startswith("admin_support_user|"):
+        return await admin_support_user_callback(update, context)
+
+    # قائمة المستخدمين مع حالة الاشتراك
     if data == "admin_users":
         subs = load_subs()
         users = []
@@ -193,6 +201,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     else:
                         status = "غير مشترك"
                     users.append((uid, uname, status))
+
         kb = []
         for uid, uname, status in users:
             label = f"{uname or 'NO'} | {status}"
@@ -204,6 +213,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             kb = [[InlineKeyboardButton("لا يوجد مستخدمون", callback_data="ignore")]]
         await safe_edit(q, "👥 قائمة المستخدمين:", InlineKeyboardMarkup(kb))
 
+    # قائمة المشتركين المدفوعين
     elif data == "admin_paidlist":
         subs = load_subs()
         kb = []
@@ -216,16 +226,19 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             kb = [[InlineKeyboardButton("لا أحد", callback_data="ignore")]]
         await safe_edit(q, "🟢 المدفوعين:", InlineKeyboardMarkup(kb))
 
+    # إلغاء اشتراك مستخدم
     elif data.startswith("admin_cancel_sub|"):
         _, uid = data.split("|", 1)
         deactivate_subscription(int(uid))
         await q.answer("تم إلغاء الاشتراك.")
         await safe_edit(q, f"❌ تم إلغاء اشتراك {uid}")
 
+    # بدء وضع البث
     elif data == "admin_broadcast":
         broadcast_mode[ADMIN_ID] = True
         await q.message.reply_text("✉️ أرسل النص أو الوسائط الآن ليتم بثها لجميع المستخدمين.")
 
+    # إحصائيات اليوم
     elif data == "admin_stats":
         subs = load_subs()
         total_users = len(open(USERS_FILE, "r", encoding="utf-8").readlines()) if os.path.exists(USERS_FILE) else 0
@@ -242,6 +255,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         await safe_edit(q, stats_text)
 
+    # دردشات الدعم النشطة
     elif data == "admin_supports":
         chats = []
         for uid, info in active_support_chats.items():
@@ -255,6 +269,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             chats = [[InlineKeyboardButton("لا يوجد دردشات دعم", callback_data="ignore")]]
         await safe_edit(q, "🆘 دردشات الدعم النشطة:", InlineKeyboardMarkup(chats))
 
+    # زرّ رجوع عام
     else:
         await safe_edit(q, "🔙 رجوع...")
 
