@@ -2,6 +2,7 @@ import os
 import subprocess
 import logging
 import functools
+import urllib.parse as up
 import asyncio
 import re
 from datetime import datetime, timezone
@@ -53,8 +54,16 @@ limits = {}                   # uid → {date,video,ai}
 def get_db_connection():
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL غير معرف")
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-
+    up.uses_netloc.append("postgres")
+    url = up.urlparse(DATABASE_URL)
+    return psycopg2.connect(
+        dbname=url.path[1:],
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port,
+        cursor_factory=RealDictCursor
+    )
 def init_db():
     conn = get_db_connection()
     cur = conn.cursor()
