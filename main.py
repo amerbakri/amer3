@@ -377,33 +377,65 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not url: return await q.answer("⚠️ رابط منتهي.")
     if not os.path.exists(COOKIES_FILE) or os.path.getsize(COOKIES_FILE) == 0:
         await q.message.reply_text(
-            "⚠️ لا يوجد ملف كوكي
+            "⚠️ لا يوجد ملف كوكيز.
 "
             "يمكنك تحميل الآن بدون كوكيز من فيسبوك/إنستا/تيك توك وسيتم دعمه لاحقاً."
         )
         return
     os.makedirs("downloads",exist_ok=True)
-    ext="mp3" if action=="audio" else "mp4"
-    outfile=f"downloads/{msg_id}.{ext}"
+    ext = "mp3" if action == "audio" else "mp4"
+    outfile = f"downloads/{msg_id}.{ext}"
     await q.edit_message_text("⏳ جاري التحميل...")
-    if action=="audio":
-        cmd=["yt-dlp","--cookies",COOKIES_FILE,"-f","bestaudio[ext=m4a]/bestaudio/best","--extract-audio","--audio-format","mp3","-o",outfile,url]
-        cap="🎵 صوت فقط"
+
+    # yt-dlp command
+    if action == "audio":
+        cmd = [
+            "yt-dlp", "--cookies", COOKIES_FILE,
+            "-f", "bestaudio[ext=m4a]/bestaudio/best",
+            "--extract-audio", "--audio-format", "mp3",
+            "-o", outfile,
+            url
+        ]
+        cap = "🎵 صوت فقط"
     else:
-        fmt=quality_map.get(quality,"best")
-        cmd=["yt-dlp","--cookies",COOKIES_FILE,"-f",fmt,"--merge-output-format","mp4","-o",outfile,url]
-        cap=f"🎬 جودة {quality}p"
-    runner=functools.partial(subprocess.run,cmd,check=True)
-    try: await asyncio.get_event_loop().run_in_executor(None,runner)
-    except subprocess.CalledProcessError as e: return await context.bot.send_message(uid,f"❌ فشل التحميل: {e}")
-    if not os.path.exists(outfile): return await context.bot.send_message(uid,"❌ الملف غير موجود!")
+        fmt = quality_map.get(quality, "best")
+        cmd = [
+            "yt-dlp", "--cookies", COOKIES_FILE,
+            "-f", fmt,
+            "--merge-output-format", "mp4",
+            "-o", outfile,
+            url
+        ]
+        cap = f"🎬 جودة {quality}p"
+
+    runner = functools.partial(subprocess.run, cmd, check=True)
     try:
-        with open(outfile,"rb") as f:
-            if action=="audio": await context.bot.send_audio(uid,f,caption=cap)
-            else: await context.bot.send_video(uid,f,caption=cap)
+        await asyncio.get_event_loop().run_in_executor(None, runner)
+    except subprocess.CalledProcessError as e:
+        await context.bot.send_message(uid, f"❌ فشل التحميل: {e}")
+        url_store.pop(msg_id, None)
+        return
+
+    if not os.path.exists(outfile):
+        await context.bot.send_message(uid, "❌ الملف غير موجود!")
+        url_store.pop(msg_id, None)
+        return
+
+    try:
+        with open(outfile, "rb") as f:
+            if action == "audio":
+                await context.bot.send_audio(uid, f, caption=cap)
+            else:
+                await context.bot.send_video(uid, f, caption=cap)
         await q.message.delete()
-    except Exception as e: await context.bot.send_message(uid,f"❌ خطأ: {e}")
+    except Exception as e:
+        await context.bot.send_message(uid, f"❌ خطأ: {e}")
     finally:
+        url_store.pop(msg_id, None)
+        try:
+            os.remove(outfile)
+        except:
+            pass
         url_store.pop(msg_id,None);
         try: os.remove(outfile)
         except: pass
