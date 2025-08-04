@@ -375,11 +375,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.delete();url_store.pop(parts[1],None);return
     action,quality,msg_id=parts;url=url_store.get(msg_id)
     if not url: return await q.answer("⚠️ رابط منتهي.")
-    if not os.path.exists(COOKIES_FILE) or os.path.getsize(COOKIES_FILE)==0:
-        return await q.message.reply_text(
+    if not os.path.exists(COOKIES_FILE) or os.path.getsize(COOKIES_FILE) == 0:
+        await q.message.reply_text(
             "⚠️ لا يوجد ملف كوكيز.
-            يمكنك تحميل الآن بدون كوكيز من فيسبوك/إنستا/تيك توك وسيتم دعمه لاحقاً."
+"
+            "يمكنك تحميل الآن بدون كوكيز من فيسبوك/إنستا/تيك توك وسيتم دعمه لاحقاً."
         )
+        return
     os.makedirs("downloads",exist_ok=True)
     ext="mp3" if action=="audio" else "mp4"
     outfile=f"downloads/{msg_id}.{ext}"
