@@ -415,7 +415,7 @@ async def button_handler(update, context):
 app = Application.builder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern="^admin_"))
-app.add_handler(CallbackQueryHandler(subscribe_request, pattern="^subscribe_request$"))
+app.add_handler(CallbackQueryHandler(support_start, pattern="^support_start$"))
 app.add_handler(CallbackQueryHandler(confirm_sub, pattern="^confirm_sub\|"))
 app.add_handler(CallbackQueryHandler(reject_sub, pattern="^reject_sub\|"))
 app.add_handler(CallbackQueryHandler(button_handler, pattern="^(video|audio|cancel)\|"))
