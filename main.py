@@ -465,6 +465,37 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove(outfile)
         except:
             pass
+# ------------- Admin Support Direct Message Handler -------------
+
+async def admin_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    # تحقق إذا كان الأدمن في وضع الدعم
+    if user_id == ADMIN_ID and 'support_contact' in context.user_data:
+        target_id = context.user_data['support_contact']
+        msg = update.message
+
+        # أرسل الرسالة للمستخدم حسب نوعها
+        if msg.text:
+            await context.bot.send_message(target_id, f"📩 دعم من الأدمن:\n{msg.text}")
+        elif msg.photo:
+            await context.bot.send_photo(target_id, msg.photo[-1].file_id, caption=msg.caption or "📩 صورة دعم من الأدمن")
+        elif msg.video:
+            await context.bot.send_video(target_id, msg.video.file_id, caption=msg.caption or "📩 فيديو دعم من الأدمن")
+        elif msg.audio:
+            await context.bot.send_audio(target_id, msg.audio.file_id, caption=msg.caption or "📩 صوت دعم من الأدمن")
+        elif msg.document:
+            await context.bot.send_document(target_id, msg.document.file_id, caption=msg.caption or "📩 ملف دعم من الأدمن")
+        else:
+            await context.bot.send_message(target_id, "📩 وصلك دعم من الأدمن.")
+
+        await update.message.reply_text("✅ تم إرسال رسالتك للمستخدم وتم إنهاء الجلسة.")
+
+        # إنهاء الجلسة فوراً
+        context.user_data.pop('support_contact')
+        return
+
+    # إذا لم يكن الأدمن في وضع دعم، لا تفعل شيء (يمر للرسالة التالية)
+    # يمكنك هنا تمرير التنفيذ للـ message_handler إذا أحببت، أو فقط return
 
 # ------------- App & Webhook Setup -------------
 init_db()
@@ -481,6 +512,7 @@ app.add_handler(CallbackQueryHandler(reject_sub, pattern="^reject_sub\\|"))
 app.add_handler(CallbackQueryHandler(broadcast_handler, pattern="^admin_broadcast$"))
 app.add_handler(CallbackQueryHandler(button_handler, pattern="^(video|audio|cancel)\\|"))
 app.add_handler(CallbackQueryHandler(support_start, pattern="^support_start$"))
+app.add_handler(MessageHandler(filters.ALL, admin_message_handler))
 app.add_handler(MessageHandler(~filters.COMMAND, message_handler))
 
 # Webhook
