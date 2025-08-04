@@ -123,8 +123,11 @@ async def safe_edit(query, text, kb=None):
 
 # ============ /start & Admin Panel ================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id == ADMIN_ID:
+    user = update.effective_user
+    uid = user.id
+
+    # إذا أدمن
+    if uid == ADMIN_ID:
         kb = [
             [InlineKeyboardButton("👥 المستخدمون", callback_data="admin_users")],
             [InlineKeyboardButton("🟢 المدفوعين", callback_data="admin_paidlist")],
@@ -132,18 +135,40 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("📊 إحصائيات", callback_data="admin_stats")],
             [InlineKeyboardButton("🆘 دردشات الدعم", callback_data="admin_supports")],
         ]
-        await update.message.reply_text("🛠️ لوحة تحكم الأدمن:", reply_markup=InlineKeyboardMarkup(kb))
+        text = "🛠️ لوحة تحكم الأدمن:"
+    # إذا مشترك
+    elif is_subscribed(uid):
+        # تحميل بيانات الاشتراك
+        subs = load_subs()
+        info = subs.get(str(uid), {})
+        # استخرج تاريخ التفعيل
+        activated_at = datetime.fromisoformat(info.get("date"))
+        # احسب الأيام المستخدمة والمتبقية
+        days_used = (datetime.now(timezone.utc) - activated_at).days
+        days_left = max(0, 30 - days_used)
+        kb = [
+            [InlineKeyboardButton("💬 دعم فني", callback_data="support_start")],
+            # إضافة أزرار أخرى للميزات الكاملة إذا أحببت
+        ]
+        text = (
+            f"✅ أهلاً يا {fullname(user)}، اشتراكك مفعل!\n"
+            f"⏳ تبقى لديك {days_left} يوم من اشتراكك.\n\n"
+            "💬 لأي مشكلة اضغط دعم فني."
+        )
+    # غير مشترك
     else:
         kb = [
             [InlineKeyboardButton("💎 اشترك الآن", callback_data="subscribe_request")],
             [InlineKeyboardButton("💬 دعم فني", callback_data="support_start")],
         ]
-        await update.message.reply_text(
+        text = (
             "👋 أهلاً بك!\n"
-            "🔓 حمّل 3 فيديوهات يومياً مجاناً أو اشترك لتفعيل الميزات الكاملة.\n"
-            f"للاشتراك، حول على أورنج موني {ORANGE_NUMBER} ثم اضغط 💎 اشترك الآن.",
-            reply_markup=InlineKeyboardMarkup(kb)
+            f"🔓 حمّل 3 فيديوهات يومياً مجاناً أو اشترك لتفعيل الميزات الكاملة.\n"
+            f"للاشتراك، حول على أورنج موني {ORANGE_NUMBER} ثم اضغط 💎 اشترك الآن."
         )
+
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
+
 
 async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
