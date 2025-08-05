@@ -245,7 +245,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         f"🤖 استخدام الذكاء الصناعي اليوم: {ai}"
     )
     return await safe_edit(q, txt)
-    )
+    
     # Support chats
     if d == "admin_supports":
         kb=[[InlineKeyboardButton(f"{info['name']} @{info['username']}", callback_data=f"reply_support|{uid}")] for uid,info in active_support_chats.items()]
