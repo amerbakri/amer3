@@ -231,13 +231,21 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return await q.edit_message_text("✉️ أرسل نص للإعلان")
     # Stats
     if d == "admin_stats":
-        conn = get_db_connection(); cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) AS c FROM users;"); total=cur.fetchone()['c']
-        cur.execute("SELECT COUNT(*) AS c FROM subscriptions;"); paid=cur.fetchone()['c']
-        cur.close(); conn.close()
-        vids=sum(l.get('video',0) for l in limits.values()); ai=sum(l.get('ai',0) for l in limits.values())
-        txt=f"📊 اليوم: Users={total}, Subs={paid}, Videos={vids}, AI={ai}"
-        return await safe_edit(q, txt)
+    conn = get_db_connection(); cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) AS c FROM users;"); total=cur.fetchone()['c']
+    cur.execute("SELECT COUNT(*) AS c FROM subscriptions;"); paid=cur.fetchone()['c']
+    cur.close(); conn.close()
+    vids=sum(l.get('video',0) for l in limits.values())
+    ai=sum(l.get('ai',0) for l in limits.values())
+    txt = (
+        "📊 إحصائيات اليوم:\n"
+        f"👤 جميع المستخدمين: {total}\n"
+        f"💎 المشتركين: {paid}\n"
+        f"📥 تنزيلات الفيديو اليوم: {vids}\n"
+        f"🤖 استخدام الذكاء الصناعي اليوم: {ai}"
+    )
+    return await safe_edit(q, txt)
+    )
     # Support chats
     if d == "admin_supports":
         kb=[[InlineKeyboardButton(f"{info['name']} @{info['username']}", callback_data=f"reply_support|{uid}")] for uid,info in active_support_chats.items()]
