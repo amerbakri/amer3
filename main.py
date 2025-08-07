@@ -476,8 +476,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     import math
 MAX_TG_SIZE_MB = 49.5  # الحد الآمن
 
-try:
-    file_size_mb = os.path.getsize(outfile) / (1024 * 1024)
+    try:
+        file_size_mb = os.path.getsize(outfile) / (1024 * 1024)
         if file_size_mb > MAX_TG_SIZE_MB:
             await context.bot.send_message(
                 uid,
@@ -486,6 +486,7 @@ try:
             )
             os.remove(outfile)
             return
+
         with open(outfile, "rb") as f:
             if action == "audio":
                 await context.bot.send_audio(uid, f, caption=cap)
@@ -504,6 +505,7 @@ try:
             os.remove(outfile)
         except:
             pass
+
 
 # ====== البوت & الويب هوك ======
 init_db()
