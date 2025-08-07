@@ -477,35 +477,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 MAX_TG_SIZE_MB = 49.5  # الحد الآمن
 
 try:
-    # افحص حجم الملف قبل الإرسال
     file_size_mb = os.path.getsize(outfile) / (1024 * 1024)
-    if file_size_mb > MAX_TG_SIZE_MB:
+        if file_size_mb > MAX_TG_SIZE_MB:
+            await context.bot.send_message(
+                uid,
+                f"❌ الفيديو أكبر من الحد المسموح لإرساله عبر تليجرام بوت (الحجم: {math.ceil(file_size_mb)}MB).\n"
+                "جرب رابط آخر أو اختر جودة أقل!"
+            )
+            os.remove(outfile)
+            return
+        with open(outfile, "rb") as f:
+            if action == "audio":
+                await context.bot.send_audio(uid, f, caption=cap)
+            else:
+                await context.bot.send_video(uid, f, caption=cap)
+        await q.message.delete()
+        increment_limit(uid, "video")
+    except Exception:
         await context.bot.send_message(
             uid,
-            f"❌ الفيديو أكبر من الحد المسموح لإرساله عبر تليجرام بوت (الحجم: {math.ceil(file_size_mb)}MB).\n"
-            "جرب رابط آخر أو اختر جودة أقل!"
+            "❌ حدث خطأ أثناء إرسال الملف للمستخدم.\n"
+            "جرب رابط آخر أو تواصل مع الدعم."
         )
-        os.remove(outfile)
-        return
-
-    with open(outfile, "rb") as f:
-        if action == "audio":
-            await context.bot.send_audio(uid, f, caption=cap)
-        else:
-            await context.bot.send_video(uid, f, caption=cap)
-    await q.message.delete()
-    increment_limit(uid, "video")
-except Exception:
-    await context.bot.send_message(
-        uid,
-        "❌ حدث خطأ أثناء إرسال الملف للمستخدم.\n"
-        "جرب رابط آخر أو تواصل مع الدعم."
-    )
-finally:
-    try:
-        os.remove(outfile)
-    except:
-        pass
+    finally:
+        try:
+            os.remove(outfile)
+        except:
+            pass
 
 # ====== البوت & الويب هوك ======
 init_db()
