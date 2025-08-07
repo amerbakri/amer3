@@ -397,6 +397,9 @@ async def main_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text(f"❌ خطأ AI: {e}")
 
 # ====== أزرار التحميل ======
+import math  # ضعه في أعلى ملفك، إذا لم يكن موجودًا
+MAX_TG_SIZE_MB = 49.5  # الحد الآمن لإرسال الفيديو في تيليجرام بوت
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -458,7 +461,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await asyncio.get_event_loop().run_in_executor(None, runner)
     except Exception:
-        await context.bot.send_message(uid,
+        await context.bot.send_message(
+            uid,
             "📢 حالياً التحميل من يوتيوب متوقف مؤقتاً بسبب الضغط أو تحديث النظام.\n"
             "🔄 جرب بعد ساعتين أو أكثر، وإن شاء الله الخدمة بترجع قريباً!\n"
             "✌️ في الوقت الحالي بتقدر تحمل من فيسبوك، إنستاغرام أو تيك توك بدون مشاكل.\n"
@@ -467,14 +471,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not os.path.exists(outfile):
-        await context.bot.send_message(uid,
+        await context.bot.send_message(
+            uid,
             "❌ لم يتم العثور على الملف!\n"
             "جرب مجدداً أو اختر رابطاً آخر."
         )
         return
-
-    import math
-MAX_TG_SIZE_MB = 49.5  # الحد الآمن
 
     try:
         file_size_mb = os.path.getsize(outfile) / (1024 * 1024)
